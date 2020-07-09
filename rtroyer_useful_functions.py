@@ -137,3 +137,87 @@ def update_progress(progress):
                                              + "-" * (bar_length - block),
                                              progress * 100)
     print(text)
+
+def normalize_image(image, uint=True):
+    """
+    Function to turn images into a 0-256 scale image array
+    input and output are both numpy arrays
+    if uint=True datatype of output array is uint8
+    """
+    
+    # First look for minimum value, this will be black
+    black = np.min(image)
+    #...then shift values so black is 0
+    image_normalized = image-black
+    
+    # Set everything above 255 equal to 255, this is white
+    image_normalized[image_normalized > 255] = 255
+
+    if uint==True:
+        return image_normalized.astype('uint8')
+    else:
+        return image_normalized
+
+def mask_image(image, x_shift, y_shift, radius, 
+               edge=0):
+    """ Function is designed to blacken an allsky image outside
+    of the sky region. Input the radius (in pixels) of the sky section
+    and the pixel coordinates of the center of the sky section.
+    Returnsa masked image. Also has the ability to mask edges 
+    with pixel width w.
+    INPUT
+    image
+        type: array
+        about: the image array to mask
+    x_shift
+     type: int
+     about: number of pixels to shift the center in x-direction
+    y_shift 
+        type: int
+        about: number of pixels to shift the center in y-direction
+    radius 
+        type: int
+        about: radius in pixels of the circle to mask image with
+    edge 
+        type: int
+        about: pixels to mask out around the image edge
+    OUTPUT
+    image 
+        type: array
+        about: the masked image array with masked values as nan
+    """
+    
+    # First convert image to float
+    image = image.astype('float')
+    
+    # Define parameters for mask all in pixels
+    x_center = int(image.shape[1]/2) + x_shift 
+    y_center = int(image.shape[0]/2) + y_shift
+    
+    # Create an array with shifted index values
+    x_array = np.zeros([image.shape[0], image.shape[1]], dtype=int)
+    for i in range(0, x_array.shape[0]):
+        x_array[i,:] = np.arange(0, image.shape[1])
+
+    y_array = np.zeros([image.shape[0], image.shape[1]], dtype=int)
+    for j in range(0, y_array.shape[1]):
+        y_array[:,j] = np.arange(0, image.shape[0])
+
+    # Shift the arrays
+    x_array = x_array - x_center
+    y_array = y_array - y_center
+
+    # Array to store radius value
+    radius_array = x_array**2 + y_array**2
+
+    # Set image array to black outside of radius
+    black = np.nan
+    image[np.where(radius_array > radius**2)] = black
+    
+    # Edge masking
+    image[:edge+1, :] = black
+    image[:, :edge+1] = black
+    image[image.shape[1] - (edge+1):, :] = black
+    image[:, image.shape[1] - (edge+1):] = black
+    
+    return image
