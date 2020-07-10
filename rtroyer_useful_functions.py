@@ -111,12 +111,15 @@ def create_keogram(img_stack, median=False, n=5):
     return keogram
 
 
-def update_progress(progress):
+def update_progress(progress, process=''):
     """Function to display a bar with the progress of an action.
     INPUT
     progress
         type: float
         description: action step/total steps of action
+    process
+	type: string
+	about: optional string to add to string printout
     OUTPUT
     N/A
     """
@@ -133,7 +136,7 @@ def update_progress(progress):
     block = int(round(bar_length * progress))
 
     clear_output(wait = True)
-    text = "Progress: [{0}] {1:.1f}%".format( "#" * block 
+    text = "Progress (" + process + "): [{0}] {1:.1f}%".format( "#" * block 
                                              + "-" * (bar_length - block),
                                              progress * 100)
     print(text)
