@@ -13,6 +13,7 @@ from skimage.restoration import denoise_nl_means, estimate_sigma
 from IPython.display import clear_output
 import smtplib
 import ssl
+import ftplib
 
 
 def datetime_arange(start_dt, end_dt, milliseconds):
@@ -322,3 +323,64 @@ def get_pfisr_parameters(beam_num, file, low_cutoff=0,
 
     return (utc_time, altitude, e_density,
             de_density, beam_az, beam_el)
+
+def get_pfrr_asi_filenames(date):
+
+    """Function to get file pathnames for pfrr asi
+    INPUT
+    date
+        type: datetime
+        about: date to get pathnames for
+    OUTPUT
+    filenames
+        type: list
+        about: list of all file pathnames
+    """
+    
+    # Login to the ftp as public
+    ftp_link = 'optics.gi.alaska.edu'
+    ftp = ftplib.FTP(ftp_link)
+    ftp.login()
+    #...access the imager directory (DASC - digital all sky camera)
+    rel_imager_dir = ('/PKR/DASC/RAW/' 
+                      + str(date.year).zfill(4) + '/'
+                      + str(date.year).zfill(4) + str(date.month).zfill(2)
+                      + str(date.day).zfill(2) + '/')
+
+
+    # Find which years there is data for
+    #...try until it works, the server often returns an error
+    try:
+         # Set current working directory to the ftp directory
+        ftp.cwd(rel_imager_dir)
+        #...store directories in dictionary
+        filenames = ['ftp://' + ftp_link + rel_imager_dir 
+                     + f for f in ftp.nlst()]
+
+    except:
+        result = None
+        counter = 0
+        while result is None:
+
+            # Break out of loop after 10 iterations
+            if counter > 10:
+                print('Unable to get data from: ftp://' + ftp_link 
+                      + rel_imager_dir)
+                break
+
+            try:
+                # Set current working directory to the ftp directory
+                ftp = ftplib.FTP(ftp_link)
+                ftp.login()
+                ftp.cwd(rel_imager_dir)
+                #...store directories in dictionary
+                filenames = ['ftp://' + ftp_link + rel_imager_dir 
+                             + f + '/' for f in ftp.nlst()]
+                result = True
+
+            except:
+                pass
+
+            counter = counter + 1
+            
+    return filenames
