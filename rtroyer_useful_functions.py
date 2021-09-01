@@ -7,6 +7,7 @@ Created on Thu Feb 13 16:08:25 2020
 """
 
 import numpy as np
+import os
 import datetime
 from skimage import exposure
 from skimage.restoration import denoise_nl_means, estimate_sigma
@@ -14,6 +15,7 @@ from IPython.display import clear_output
 import smtplib
 import ssl
 import ftplib
+import wget
 
 
 def datetime_arange(start_dt, end_dt, milliseconds):
