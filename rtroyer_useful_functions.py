@@ -384,3 +384,34 @@ def get_pfrr_asi_filenames(date):
             counter = counter + 1
             
     return filenames
+
+def job(job_input):
+    """Function to pass to thread process to download file
+    INPUT
+    job_input
+        type: string
+        about: string that contains the local directory to store
+                the downloaded files and the file url to download
+                these are seperated by the ### characters
+    OUTPUT
+    none"""
+    day_dir, file_url = job_input.split('###')
+    
+    # Check if file is already downloaded
+    if os.path.exists(day_dir + file_url[54:]):
+        return
+    
+    result = None
+    counter = 0
+    while result is None:
+        # Break out of loop after 10 iterations
+        if counter > 10:
+            break
+        try:
+            wget.download(file_url, day_dir 
+                          + file_url[54:])
+
+            result = True
+        except:
+            pass
+        counter = counter + 1
