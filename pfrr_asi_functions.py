@@ -283,7 +283,7 @@ def create_image_stack(date, wavelength = '428',
             angle = 0
             
         image = ndimage.rotate(image, angle=angle, reshape=False,
-			      mode='nearest')
+			      mode='constant', cval=np.min(image))
 
         # Store in array
         all_images[n, :, :] = image
