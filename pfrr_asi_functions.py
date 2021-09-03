@@ -261,7 +261,7 @@ def create_image_stack(date, wavelength = '428',
         second = int(file[27:29])
         time = dt(year, month, day, hour, minute, second)
 
-        # Process image
+        # Turn any nan values into numbers 
         image = np.nan_to_num(image, nan=np.nanmin(image))
         
         # Convert to uint16 to reduce size
@@ -282,7 +282,8 @@ def create_image_stack(date, wavelength = '428',
             fov_radius = 243
             angle = 0
             
-        image = ndimage.rotate(image, angle=angle, reshape=False)
+        image = ndimage.rotate(image, angle=angle, reshape=False,
+			      mode='nearest')
 
         # Store in array
         all_images[n, :, :] = image
