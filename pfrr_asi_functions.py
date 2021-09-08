@@ -223,7 +223,7 @@ def create_image_stack(date, wavelength = '428',
     image_file.close()
     all_images = np.zeros((len(files), 
                           np.shape(image)[0],
-                          np.shape(image)[1]), dtype=np.uint16)
+                          np.shape(image)[1]), dtype=np.uint8)
     
     # Initialize time as list to make datatype easier
     all_times = []
@@ -252,6 +252,13 @@ def create_image_stack(date, wavelength = '428',
             # Otherwise just set image to previous image
             image = old_image
 
+        # Turn any nan values into numbers 
+        image = np.nan_to_num(image, nan=np.nanmin(image))
+
+        # Recast to 0 to 255 for uint8 datatype
+        image = image - np.min(image)
+        image[image > 255] = 255
+
         # Time from filename
         year = int(file[14:18])
         month = int(file[18:20])
@@ -260,12 +267,6 @@ def create_image_stack(date, wavelength = '428',
         minute = int(file[25:27])
         second = int(file[27:29])
         time = dt(year, month, day, hour, minute, second)
-
-        # Turn any nan values into numbers 
-        image = np.nan_to_num(image, nan=np.nanmin(image))
-        
-        # Convert to uint16 to reduce size
-        image = image.astype(np.uint16)
         
         # Rotate image if necessary
         # The ASI sensor wasn't aligned with N-S-E-W before 2018
@@ -275,7 +276,7 @@ def create_image_stack(date, wavelength = '428',
             x_shift = 7
             y_shift = 12
             fov_radius = 243
-            angle = 75
+            angle = 90
         else:
             x_shift = 7
             y_shift = -5
@@ -283,7 +284,14 @@ def create_image_stack(date, wavelength = '428',
             angle = 0
             
         image = ndimage.rotate(image, angle=angle, reshape=False,
-			      mode='constant', cval=np.min(image))
+			      mode='constant', cval=np.nanmin(image))
+
+	# Recast from 0 to 255 again, I think something in the rotation looses the initial casting
+        image = image - np.min(image)
+        image[image > 255] = 255
+
+        # Make sure array is uint8 to reduce size
+        image = image.astype(np.uint8)
 
         # Store in array
         all_images[n, :, :] = image
@@ -346,7 +354,7 @@ def store_images_hdf5(date, all_images, all_times, wavelength='428',
         # Create a dataset in the file for the images
         dataset = hdf5_file.create_dataset('images',
                                            np.shape(all_images),
-                                           dtype='uint16',
+                                           dtype='uint8',
                                            data=all_images)
         
         # Also dataset for the times
