@@ -9,7 +9,12 @@ Created on Thu Feb 13 16:08:25 2020
 from bs4 import BeautifulSoup
 import cdflib
 from datetime import datetime as dt
+import gc
 import h5py
+from matplotlib import animation
+from matplotlib import colors as mcolors
+from matplotlib import dates as mdates
+from matplotlib import pyplot as plt
 import numpy as np
 import os
 import requests
@@ -273,3 +278,198 @@ def store_images_hdf5(date, all_images, all_times, asi,
     if del_files == True:
         shutil.rmtree(img_base_dir + asi + '/individual-images/' 
                       + str(date) + '/')
+
+def create_themis_keogram(date, asi,
+                          save_fig = False, close_fig = True,
+                          save_base_dir = ('../figures/themis-figures/'),
+                          img_base_dir = ('../data/themis-asi-data/'
+                                           'themis-images/')):
+    """Function to create a keogram image for THEMIS camera.
+    DEPENDENCIES
+        h5py, datetime.datetime, numpy, matplotlib.pyplot, 
+        matplotlib.colors, matplotlib.dates, gc
+    INPUT
+    date
+        type: datetime
+        about: date to download images from
+    asi
+        type: string
+        about: 4 letter themis station
+    save_fig = False
+        type: bool
+        about: whether to save the figure or not
+    close_fig = True
+        type: bool
+        about: whether to close the figure, useful when producing 
+                many plots
+    """
+    
+    # Select file with images
+    img_file = (img_base_dir + asi + '/all-images-'
+                + asi + '-' + str(date) + '.h5')
+
+    themis_file = h5py.File(img_file, "r")
+
+    # Get times from file
+    all_times = [dt.fromtimestamp(d) for d in themis_file['timestamps']]
+
+    # Get all the images too
+    all_images = themis_file['images']
+
+    # Get keogram slices
+    keogram_img = all_images[:, :, int(all_images.shape[2]/2)]
+    
+    # Do some minor processing to keogram
+    
+    # Replace nans with smallest value
+    keogram_img = np.nan_to_num(keogram_img,
+                                nan=np.nanmin(keogram_img))
+    
+    # Rotate by 90 degrees counterclockwise
+    keogram_img = np.rot90(keogram_img)
+    
+    # Finally flip, so north is at top in mesh plot
+    keogram_img = np.flip(keogram_img, axis=0)
+
+    # Construct time and altitude angle meshes to plot against
+    altitudes = np.linspace(0, 180, keogram_img.shape[0])
+    time_mesh, alt_mesh = np.meshgrid(all_times, altitudes)
+
+    # Setup figure
+    fig, ax = plt.subplots()
+
+    # Plot keogram as colormesh
+    ax.pcolormesh(time_mesh, alt_mesh, keogram_img,
+                  norm=mcolors.LogNorm(),
+                  cmap='gray', shading='auto')
+
+    # Axis and labels
+    ax.set_title('keogram of ' + str(date),
+                 fontweight='bold', fontsize=14)
+    ax.set_ylabel('Azimuth Angle (S-N)',
+                  fontweight='bold', fontsize=14)
+    ax.set_xlabel('UT1 Time (HH:MM)',
+                  fontweight='bold', fontsize=14)
+    fig.autofmt_xdate()
+    h_fmt = mdates.DateFormatter('%H:%M')
+    ax.xaxis.set_major_formatter(h_fmt)
+    ax.tick_params(axis='x', which='major', labelsize=14)
+    ax.tick_params(axis='y', which='major', labelsize=14)
+
+    plt.tight_layout()
+
+    # Save the figure if specified
+    if save_fig == True:
+        save_dir = (save_base_dir + asi + '-keograms/')
+        plt.savefig(save_dir + asi + '-' + str(date) + '.jpg', 
+                    dpi=250)
+
+    # Close the figure and all associated
+    #...not sure if I need to clear all of these
+    #...but figure it doesn't hurt
+    if close_fig == True:
+        #...axis
+        plt.cla()
+        #...figure
+        plt.clf()
+        #...figure windows
+        plt.close('all')
+        #...clear memory
+        gc.collect()
+
+def create_timestamped_movie(date, asi,
+                 save_base_dir = '../data/themis-asi-data/themis-images/',
+                 img_base_dir = '../data/themis-asi-data/themis-images/'
+                ):
+    
+    """Function to create a movie from THEMIS ASI files with a timestamp and frame number.
+    Includes a timestamp, and frame number. 
+    DEPENDENCIES
+        h5py, datetime.datetime, matplotlib.pyplot, matplotlib.animation
+    INPUT
+    date
+        type: datetime
+        about: day to process image files for
+    asi
+        type: str
+        about: 4 letter themis asi location
+    OUTPUT
+    none
+    """
+    
+    # Select file with images
+    img_file = (img_base_dir + asi + '/all-images-'
+                + asi + '-' + str(date) + '.h5')
+
+    themis_file = h5py.File(img_file, "r")
+
+    # Get times from file
+    all_times = [dt.fromtimestamp(d) for d in themis_file['timestamps']]
+
+    # Get all the images too
+    all_images = themis_file['images']
+
+    # CREATE MOVIE
+
+    img_num = all_images.shape[0]
+    fps = 20.0
+
+
+    # Construct an animation
+    # Setup the figure
+    fig, axpic = plt.subplots(1, 1)
+
+    # No axis for images
+    axpic.axis('off')
+
+    # Plot the image
+    img = axpic.imshow(all_images[0],
+                       cmap='gray', animated=True)
+
+    # Add frame number and timestamp to video
+    frame_num = axpic.text(10, 250, '00000', fontweight='bold',
+                           color='white')
+    time_str = str(all_times[0])
+    time_label = axpic.text(120, 250,
+                            time_str,
+                            fontweight='bold',
+                            color='white')
+
+    plt.tight_layout()
+
+    def updatefig(frame):
+        """Function to update the animation"""
+
+        # Set new image data
+        img.set_data(all_images[frame])
+        # And the frame number
+        frame_num.set_text(str(frame).zfill(5))
+        #...and time
+        time_str = str(all_times[frame])
+        time_label.set_text(time_str)
+
+        return [img, frame_num, time_label]
+
+    # Construct the animation
+    anim = animation.FuncAnimation(fig, updatefig,
+                                   frames=img_num,
+                                   interval=int(1000.0/fps),
+                                   blit=True)
+
+    # Close the figure
+    plt.close(fig)
+
+
+    # Use ffmpeg writer to save animation
+    event_movie_fn = (save_base_dir + asi + '/movies/' 
+                      + asi + '-' + str(date)
+                      + '.mp4')
+    writer = animation.writers['ffmpeg'](fps=fps)
+    anim.save(event_movie_fn,
+              writer=writer, dpi=150)
+
+    # Close h5py file
+    themis_file.close()
+
+    # Reset large image array
+    all_images = None
