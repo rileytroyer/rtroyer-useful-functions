@@ -172,13 +172,19 @@ def mask_image(image, x_shift, y_shift, radius,
     
     return image
 
-def send_email(message):
+def send_email(message, password=None, receiver_email=None):
     """Function to send an email notification.
     INPUT
     message
         type: str
         about: Should be in form of Subject: subject \n
                message.
+    password=None
+        type: str
+        about: password to sender account
+   receiver_email=None
+        type: string
+        about: email address to send email to
     OUTPUT
     none
     """
