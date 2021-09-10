@@ -78,44 +78,6 @@ def img_clean_n_boost(img, weight=1, low=0.1, high=99.9):
     
     return processed_img
 
-
-def create_keogram(img_stack, median=False, n=5):
-    """Function to create a keogram array from a set of images.
-    INPUT
-    img_stack
-        type: 3D array 
-        description: A stack of all the images to create the keogram from
-    n=5
-        type: integer
-        description: If taking an average this is the averaging range
-    median=False
-        type: boolean
-        description: Whether to take the median of a few columns
-    OUTPUT
-    keogram
-        type: 2D array 
-        description: Array representing the keogram
-    """
-    
-    # Create an array to store the keogram data
-    keogram = np.zeros([img_stack.shape[1], img_stack.shape[0]])
-
-    # Find the middle of picture
-    middle = int(img_stack.shape[2]/2)
-
-    # Then slice the array to get the keogram
-    if median==False:
-        keogram = img_stack[:, :, middle]
-    if median==True:
-        keogram = np.median(img_stack[:, :, (middle-n):(middle+n)],
-                          axis=2)
-    #...finally rotate by 90 degrees
-    keogram = np.rot90(keogram)
-        
-            
-    return keogram
-
-
 def update_progress(progress, process=''):
     """Function to display a bar with the progress of an action.
     INPUT
@@ -145,26 +107,6 @@ def update_progress(progress, process=''):
                                              + "-" * (bar_length - block),
                                              progress * 100)
     print(text)
-
-def normalize_image(image, uint=True):
-    """
-    Function to turn images into a 0-256 scale image array
-    input and output are both numpy arrays
-    if uint=True datatype of output array is uint8
-    """
-    
-    # First look for minimum value, this will be black
-    black = np.min(image)
-    #...then shift values so black is 0
-    image_normalized = image-black
-    
-    # Set everything above 255 equal to 255, this is white
-    image_normalized[image_normalized > 255] = 255
-
-    if uint==True:
-        return image_normalized.astype('uint8')
-    else:
-        return image_normalized
 
 def mask_image(image, x_shift, y_shift, radius, 
                edge=0):
@@ -325,95 +267,3 @@ def get_pfisr_parameters(beam_num, file, low_cutoff=0,
 
     return (utc_time, altitude, e_density,
             de_density, beam_az, beam_el)
-
-def get_pfrr_asi_filenames(date):
-
-    """Function to get file pathnames for pfrr asi
-    INPUT
-    date
-        type: datetime
-        about: date to get pathnames for
-    OUTPUT
-    filenames
-        type: list
-        about: list of all file pathnames
-    """
-    
-    # Login to the ftp as public
-    ftp_link = 'optics.gi.alaska.edu'
-    ftp = ftplib.FTP(ftp_link)
-    ftp.login()
-    #...access the imager directory (DASC - digital all sky camera)
-    rel_imager_dir = ('/PKR/DASC/RAW/' 
-                      + str(date.year).zfill(4) + '/'
-                      + str(date.year).zfill(4) + str(date.month).zfill(2)
-                      + str(date.day).zfill(2) + '/')
-
-
-    # Find which years there is data for
-    #...try until it works, the server often returns an error
-    try:
-         # Set current working directory to the ftp directory
-        ftp.cwd(rel_imager_dir)
-        #...store directories in dictionary
-        filenames = ['ftp://' + ftp_link + rel_imager_dir 
-                     + f for f in ftp.nlst()]
-
-    except:
-        result = None
-        counter = 0
-        while result is None:
-
-            # Break out of loop after 10 iterations
-            if counter > 10:
-                print('Unable to get data from: ftp://' + ftp_link 
-                      + rel_imager_dir)
-                break
-
-            try:
-                # Set current working directory to the ftp directory
-                ftp = ftplib.FTP(ftp_link)
-                ftp.login()
-                ftp.cwd(rel_imager_dir)
-                #...store directories in dictionary
-                filenames = ['ftp://' + ftp_link + rel_imager_dir 
-                             + f + '/' for f in ftp.nlst()]
-                result = True
-
-            except:
-                pass
-
-            counter = counter + 1
-            
-    return filenames
-
-def job(job_input):
-    """Function to pass to thread process to download file
-    INPUT
-    job_input
-        type: string
-        about: string that contains the local directory to store
-                the downloaded files and the file url to download
-                these are seperated by the ### characters
-    OUTPUT
-    none"""
-    day_dir, file_url = job_input.split('###')
-    
-    # Check if file is already downloaded
-    if os.path.exists(day_dir + file_url[54:]):
-        return
-    
-    result = None
-    counter = 0
-    while result is None:
-        # Break out of loop after 10 iterations
-        if counter > 10:
-            break
-        try:
-            wget.download(file_url, day_dir 
-                          + file_url[54:])
-
-            result = True
-        except:
-            pass
-        counter = counter + 1
