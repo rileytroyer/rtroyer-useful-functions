@@ -181,6 +181,11 @@ def create_image_stack(date, asi,
             
             # Shift values so lowest is zero
             image = image - np.min(image)
+            
+            # Make super bright values not nearly as bright
+            image[image>10000] = 10000
+            
+            # Convert to 0 to 255
             image = image/np.max(image)
             image = image*255
 
