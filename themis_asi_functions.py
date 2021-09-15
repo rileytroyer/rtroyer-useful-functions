@@ -6,7 +6,6 @@ Created on Thu Feb 13 16:08:25 2020
 @author: rntroyer
 """
 
-from bs4 import BeautifulSoup
 import cdflib
 from datetime import datetime as dt
 import gc
@@ -17,42 +16,10 @@ from matplotlib import dates as mdates
 from matplotlib import pyplot as plt
 import numpy as np
 import os
-import requests
 import rtroyer_useful_functions as rt_func
 import shutil
 import wget
 
-
-def get_url_paths(url, ext='', params={}):
-    """ Function to extract file names from https directory
-    Gets files in url directory with ext extension
-    Does this by parsing the html text from the webpage. I did not
-    write this function. Requires libraries requests,
-    bs4.BeautifulSoup
-    DEPENDENCIES
-        bs4.BeautifulSoup, requests
-    INPUT
-    url
-	type: string
-	about: url of directory to get files from
-    ext
-	type: string
-	about: extension of the files
-    OUTPUT
-    parent
-	type: list
-	about: list of all file pathnames within directory
-    """
-    
-    response = requests.get(url, params=params)
-    if response.ok:
-        response_text = response.text
-    else:
-        return response.raise_for_status()
-    soup = BeautifulSoup(response_text, 'html.parser')
-    parent = [url + node.get('href') for node in soup.find_all('a')
-              if node.get('href').endswith(ext)]
-    return parent
 
 def download_themis_images(date, asi,
                            base_url=('http://themis.ssl.berkeley.edu'
@@ -91,7 +58,7 @@ def download_themis_images(date, asi,
         os.mkdir(img_dir)
         
     # All files for month
-    file_urls = get_url_paths(month_url)
+    file_urls = rt_func.get_url_paths(month_url)
     
     # Filter to specific day
     file_urls = [f for f in file_urls if day_str in f]

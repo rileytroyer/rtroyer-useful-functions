@@ -16,7 +16,40 @@ import smtplib
 import ssl
 import ftplib
 import wget
+from bs4 import BeautifulSoup
+import requests
 
+
+def get_url_paths(url, ext='', params={}):
+    """ Function to extract file names from https directory
+    Gets files in url directory with ext extension
+    Does this by parsing the html text from the webpage. I did not
+    write this function. Requires libraries requests,
+    bs4.BeautifulSoup
+    DEPENDENCIES
+        bs4.BeautifulSoup, requests
+    INPUT
+    url
+        type: string
+        about: url of directory to get files from
+    ext
+        type: string
+        about: extension of the files
+    OUTPUT
+    parent
+        type: list
+        about: list of all file pathnames within directory
+    """
+
+    response = requests.get(url, params=params)
+    if response.ok:
+        response_text = response.text
+    else:
+        return response.raise_for_status()
+    soup = BeautifulSoup(response_text, 'html.parser')
+    parent = [url + node.get('href') for node in soup.find_all('a')
+              if node.get('href').endswith(ext)]
+    return parent
 
 def datetime_arange(start_dt, end_dt, milliseconds):
     """Function to create a numpy arange of datetimes, mainly used
