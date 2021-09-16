@@ -18,6 +18,7 @@ import ftplib
 import wget
 from bs4 import BeautifulSoup
 import requests
+import h5py
 
 
 def get_url_paths(url, ext='', params={}):
@@ -239,6 +240,60 @@ def send_email(message, password=None, receiver_email=None):
         #...then send message
         server.sendmail(sender_email, receiver_email, message)
 
+def read_pfisr_file(date_str, 
+                    data_dir=('../data/pfisr-data/mswinds/')):
+
+    """Function to read a pfisr data file and return the parameters 
+    as numpy arrays. Requires data file to be downloaded.
+    INPUT
+    DEPENDENCIES
+        os, h5py, numpy
+    date_str
+        type: string
+        about: string with date to read file for, YYYYMMDD
+    OUTPUT
+    pfisr_time
+        type: array of datetimes
+        about: times for each pfisr measurement
+    pfisr_alt
+        type: array of floats
+        about: altitudes for each pfisr measurement in kilometers
+    e_density
+        type: array of floats
+        about: electron densities for each altitude and time (1/m^3)
+    de_density
+        type: array of floats
+        about: error for each electron density measurement
+    beam_az, beam_el
+        type: array of floats
+        about: azimuthal and elevation angles for all beams
+    """
+    # Read in the original pfisr file
+    pfisr_files = os.listdir(data_dir)
+    pfisr_files = [f for f in pfisr_files if f.endswith('.h5')]
+    pfisr_file = [data_dir + f for f in pfisr_files if date_str in f][0]
+
+    # Read in h5 file
+    pfisr_file = h5py.File(pfisr_file, 'r')
+
+    # Get the different beams and select specified angle
+    beam_angle = 90
+    beams = np.array(pfisr_file['BeamCodes'])
+
+    # Get the beam with a 90 degree beam
+    indexes = np.linspace(0, len(beams)-1, len(beams))
+    beam = int(indexes[np.abs(beams[:,2] - beam_angle) == 0][0])
+
+    # Read in PFISR data
+    (pfisr_time, pfisr_alt,
+     e_density, de_density,
+     beam_az,
+     beam_el) = get_pfisr_parameters(beam, pfisr_file,
+                                     low_cutoff = 0, high_cutoff=1e12)
+
+    return (pfisr_time, pfisr_alt, e_density, de_density,
+            beam_az, beam_el)
+        
 def get_pfisr_parameters(beam_num, file, low_cutoff=0,
                          high_cutoff=1e20):
     """ Function to get time, altitude, and electron density for a
@@ -306,3 +361,39 @@ def get_pfisr_parameters(beam_num, file, low_cutoff=0,
 
     return (utc_time, altitude, e_density,
             de_density, beam_az, beam_el)
+
+def reduced_chi_squared(observed, modeled, errors):
+    """Function to calculate the chi square test for PFISR data.
+    DEPENDENCIES
+        numpy
+    INPUT
+    observed
+        type: array
+        about: observed values that model is trying to fit
+    modeled
+        type: array
+        about: model that is attempting to fit observed data
+    errors
+        type: array
+        about: errors in observed values
+    OUTPUT
+    chi_square / (len(observed) - 1)
+        type: float
+        about: reduced chi squared value 
+                << 1 over fit >> 1 not fit well
+    """
+    
+    # Squared difference between observed and modeled data
+    model_diff_sq = (observed - modeled)**2
+    
+    # Variance or errors squared
+    variance_sq = errors**2
+    
+    # Calculate chi square array by dividing differences by error
+    chi_square_array = model_diff_sq/variance_sq
+    
+    # Sum to get value
+    chi_square = np.sum(chi_square_array)
+    
+    # Reduce chi square by dividing by number of points -1 
+    return chi_square / (len(observed) - 1)
