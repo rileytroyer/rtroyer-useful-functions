@@ -83,7 +83,6 @@ def get_pfrr_asi_filenames(date):
                 result = True
 
             except:
-                filenames = []
                 pass
 
             counter = counter + 1
