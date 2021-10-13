@@ -60,7 +60,8 @@ def get_pfrr_asi_filenames(date):
         filenames = ['ftp://' + ftp_link + rel_imager_dir 
                      + f for f in ftp.nlst()]
 
-    except:
+    except Exception as e:
+        print(e)
         result = None
         counter = 0
         while result is None:
@@ -82,6 +83,7 @@ def get_pfrr_asi_filenames(date):
                 result = True
 
             except:
+                filenames = []
                 pass
 
             counter = counter + 1
