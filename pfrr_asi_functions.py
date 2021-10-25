@@ -549,12 +549,12 @@ def create_timestamped_movie(date, wavelength='428',
 
     # Add frame number and timestamp to video
     frame_num = axpic.text(10, 500, '0000', fontweight='bold',
-                           color='white')
+                           color='red')
     time_str = str(all_times[0])
     time_label = axpic.text(120, 500,
                             time_str,
                             fontweight='bold',
-                            color='white')
+                            color='red')
 
     plt.tight_layout()
 
