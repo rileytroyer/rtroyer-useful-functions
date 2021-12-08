@@ -140,6 +140,13 @@ def create_image_stack(date, asi,
         # Get images
         images = cdf_file.varget('thg_asf_' + asi)
 
+        # Make super bright values not nearly as bright
+        images[images>10000] = 10000
+    
+        # Get the dimest and brighest pixels
+        min_pixel = np.min(images)
+        max_pixel = np.max(images)
+
         # Recast each image to 0 to 255 for uint8
         for m, image in enumerate(images):
 
@@ -147,13 +154,13 @@ def create_image_stack(date, asi,
             image = np.nan_to_num(image, nan=np.nanmin(image))
             
             # Shift values so lowest is zero
-            image = image - np.min(image)
+            image = image - min_pixel
             
             # Make super bright values not nearly as bright
             image[image>10000] = 10000
             
             # Convert to 0 to 255
-            image = image/np.max(image)
+            image = image/max_pixel
             image = image*255
 
             # Write back to array
