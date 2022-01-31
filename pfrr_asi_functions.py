@@ -520,7 +520,7 @@ def create_timestamped_movie(date, wavelength='428',
     
     # Select file with images
     img_file = (img_base_dir + '/all-images-'
-                + wavelength + '-' + str(date) + '.h5')
+                + str(date) + '-' + wavelength'.h5')
 
     pfrr_file = h5py.File(img_file, "r")
 
@@ -583,7 +583,7 @@ def create_timestamped_movie(date, wavelength='428',
 
     # Use ffmpeg writer to save animation
     event_movie_fn = (save_base_dir 
-                      + wavelength + '-' + str(date)
+                      + str(date) + '-' + wavelength
                       + '.mp4')
     writer = animation.writers['ffmpeg'](fps=fps)
     anim.save(event_movie_fn,
