@@ -520,7 +520,7 @@ def create_timestamped_movie(date, wavelength='428',
     
     # Select file with images
     img_file = (img_base_dir + '/all-images-'
-                + str(date) + '-' + wavelength'.h5')
+                + str(date) + '-' + wavelength + '.h5')
 
     pfrr_file = h5py.File(img_file, "r")
 
