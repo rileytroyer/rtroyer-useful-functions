@@ -113,7 +113,7 @@ def job(job_input):
             break
         try:
             wget.download(file_url, day_dir 
-                          + file_url[54:])
+                          + file_url[54:], bar=None)
 
             result = True
         except:
