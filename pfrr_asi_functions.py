@@ -9,6 +9,7 @@ Created on Thu Feb 13 16:08:25 2020
 from astropy.io import fits
 import datetime
 from datetime import datetime as dt
+from dask.array.image import imread as dask_imread
 import ftplib
 import gc
 import h5py
@@ -187,197 +188,223 @@ def download_pfrr_images(date,
         if False not in finished_check:
             finished = True
 
-def create_image_stack(date, wavelength = '428',
-                       save_dir = ('../data/pfrr-asi-data/pfrr-images/'
-                                   'individual-images/')):
-    """Function to create a numpy image stack from PFRR images
-    DEPENDENCIES
-        astropy.io.fits, os, numpy, rtroyer_useful_functions,
-        scipy.ndimage
+def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
+                               save_base_dir = ('../data/pfrr-asi-data/pfrr-images/'),
+                               img_base_dir = ('../data/pfrr-asi-data/pfrr-images/'
+                                          'individual-images/')):
+    """Function to convert 428, 558, 630 nm PFRR images for an entire
+    night to an 8-bit grayscale image and then write them to an h5 file.
     INPUT
     date
         type: datetime
-        about: day to process image files for
-    wavelength = '428'
-        type: str
-        about: which wavelength images are being used
-    save_dir = '../data/pfrr-asi-data/pfrr-images/individual-images/'
-        type: str
-        about: where to save the images, program will create
-               separate directories for each day within this.
-    OUTPUT
-    all_images
-        type: array
-        about: array with all images
-    all_times
-        type: array
-        about: array with all times
-    """
-    
-    # Directory where images are stored
-    img_dir = (save_dir + str(date) + '-' + wavelength + '/')
-
-    # All files for day
-    files = [f for f in os.listdir(img_dir) if not f.startswith('.')]
-    files = sorted(files)
-
-    old_image = 0
-    
-    # Initialize array to store values in on first image
-    image_file = fits.open(img_dir + files[0])
-    image = image_file[0].data
-    image_file.close()
-    all_images = np.zeros((len(files), 
-                          np.shape(image)[0],
-                          np.shape(image)[1]), dtype=np.uint8)
-    
-    # Initialize time as list to make datatype easier
-    all_times = []
-
-    # Loop through all images and store in dictionary
-    for n, file in enumerate(files):
-
-        # Read in image file
-        #...encountered an issue where file isn't read sometimes
-        try:
-            image_file = fits.open(img_dir + file)
-            image = image_file[0].data
-            image_file.close()
-                
-        except:
-            
-            # If this is the first file exit program
-            if n==0:
-                message = ('Subject: Program Issue! \n'
-                           + 'The first file of ' + str(date)
-                           + ' ' + file + ' could not be read...'
-                           + 'ending program.')
-                rt_func.send_email(message)
-                exit()
-                
-            # Otherwise just set image to previous image
-            image = old_image
-
-        # Turn any nan values into numbers 
-        image = np.nan_to_num(image, nan=np.nanmin(image))
-
-        # Recast to 0 to 255 for uint8 datatype
-        image = image - np.min(image)
-        image[image > 255] = 255
-
-        # Time from filename
-        year = int(file[14:18])
-        month = int(file[18:20])
-        day = int(file[20:22])
-        hour = int(file[23:25])
-        minute = int(file[25:27])
-        second = int(file[27:29])
-        time = dt(year, month, day, hour, minute, second)
-        
-        # Rotate image if necessary
-        # The ASI sensor wasn't aligned with N-S-E-W before 2018
-        #...and the FOV isn't centered on the sensor, 
-        #...so I need to correct for these
-        if date.year < 2018:
-            x_shift = 7
-            y_shift = 12
-            fov_radius = 243
-            angle = 90
-        else:
-            x_shift = 7
-            y_shift = -5
-            fov_radius = 243
-            angle = 0
-            
-        image = ndimage.rotate(image, angle=angle, reshape=False,
-			      mode='constant', cval=np.nanmin(image))
-
-	# Recast from 0 to 255 again, I think something in the rotation looses the initial casting
-        image = image - np.min(image)
-        image[image > 255] = 255
-
-        # Make sure array is uint8 to reduce size
-        image = image.astype(np.uint8)
-
-        # Store in array
-        all_images[n, :, :] = image
-        all_times.append(time)
-        
-        # Update old image
-        old_image = image
-        
-        # Update progress
-        rt_func.update_progress((n+1)/len(files))
-    
-    return all_images, all_times
-
-
-def store_images_hdf5(date, all_images, all_times, wavelength='428',
-                      del_files=False,
-                      save_dir = ('../data/pfrr-asi-data/'
-                                  'pfrr-images/'),
-                      img_dir = ('../data/pfrr-asi-data/pfrr-images/'
-                                 'individual-images/')):
-    """Function to store an array of images to an HDF5 file.
-    DEPENDENCIES
-        h5py, shutil
-    INPUT
-    date
-        type: datetime
-        about: day to process image files for
-    all_images
-        type: array
-        about: array with all images
-    all_times
-        type: array
-        about: array with all times
-    wavelength = '428'
-        type: str
-        about: which wavelength images are being used
-    del_file = False
+        about: date to perform image conversion and storage for
+    wavelength='white'
+        type: string
+        about: which wavelength to use. White combines all three.
+               Options: 428, 558, 630
+    del_files = True
         type: bool
-        about: whether to delete individual files after saving h5 file
-    save_dir = '../data/pfrr-asi-data/pfrr-images/'
-        type: str
-        about: where to save the images, program will create
-               separate directories for each day within this.
-    img_dir = '../data/pfrr-asi-data/pfrr-images/individual-images/'
-        type: str
-        about: where the individual images are stored.
-               This is used to delete files if specified.
+        about: whether to delete the individual files after program runs
+    save_base_dir = ('../data/pfrr-asi-data/pfrr-images')
+        type: string
+        about: base directory to save the images to
+    img_base_dir = ('../data/pfrr-asi-data/pfrr-images/'
+                    'individual-images/')
+        type: string
+        about: base directory where the individual images are stored
     OUTPUT
     none
     """
+    
+    def read_fits(filename):
+    
+        """Function to use astropy.io.fits to read in fits file and 
+        output a numpy array
+        INPUT
+        filename
+            type: string
+            about: fits file to be read in
+        OUTPUT
+        img
+            type: numpy array
+            about: image data array
+        """
 
-    # Convert time to integer so it can be stored in h5
-    timestamps = [int(t.timestamp()) for t in all_times]
+        fits_file = fits.open(filename)
+        img = fits_file[0].data
+        fits_file.close()
 
-    # Create a new HDF5 file if it doesn't already exist
-    filename = 'all-images-' + wavelength + '-' + str(date) + '.h5'
-        
-    with h5py.File(save_dir + filename, "w") as hdf5_file:
+        return img
 
-        # Create a dataset in the file for the images
-        dataset = hdf5_file.create_dataset('images',
-                                           np.shape(all_images),
-                                           dtype='uint8',
-                                           data=all_images)
+    def process_img(img, time, high=99.5, low=0):
+
+        """Function to process PFRR ASI image. Filters out bright and dark pixels
+        then converts to 8-bit
+        INPUT
+        img
+            type: array
+            about: image data in array
+        time
+            type: datetime
+            about: time associated with image
+        high=99.5
+            type: float
+            about: bright percentile
+        low=0
+            type: float
+            about: dim percentile
+        OUTPUT
+        img
+            type: array
+            about: 8-bit processed image
+        """
+
+        # First rotate the image as needed
+        if time.year < 2018:
+            angle = -90
+        else:
+            angle = 0
+
+        img = ndimage.rotate(img, angle=angle, reshape=False,
+                             mode='constant', cval=np.nanmin(img),
+                             axes=(2, 1))
         
-        # Also dataset for the times
-        dataset_time = hdf5_file.create_dataset('timestamps',
-                                                np.shape(timestamps),
-                                                dtype='uint64',
-                                                data=timestamps)
+        # Make smallest pixel value zero
+        img = abs(img - np.min(img))
         
-        # Include data attributes as well
-        dataset_time.attrs['about'] = ('UT POSIX Timestamp. '
-                                       'Use datetime.fromtimestamp '
-                                       'to convert.')
-        dataset.attrs['wavelength'] = wavelength
+        # Set a maximum pixel value
+        max_pixel_val = 2**16
         
-    # If specified delete all individual files
-    if del_files == True:
-        shutil.rmtree(img_dir + str(date) + '-' + wavelength + '/')
+        # Set anything larger to this value
+        img[img>max_pixel_val] = max_pixel_val
+        
+        # Logarithmically scale image
+        img = (255/np.log(1 + max_pixel_val)) * np.log(1 + img)
+        
+        # Clip to 0 to 255
+        img[img>255] = 255
+        
+        # Convert to uint8
+        img = img.astype('uint8')
+        
+
+        return img
+    
+    output = []
+    
+    # Combine rgb images to create white wavelength
+    if wavelength == 'white':
+        
+        # Get a list of all files for each wavelength and extract times
+        dir_428 = img_base_dir + str(date) + '-428/'
+        dir_558 = img_base_dir + str(date) + '-558/'
+        dir_630 = img_base_dir + str(date) + '-630/'
+
+        # Get names of files in each directory
+        files_428 = sorted(os.listdir(dir_428))
+        files_558 = sorted(os.listdir(dir_558))
+        files_630 = sorted(os.listdir(dir_630))
+
+        # Extract a list of times for each list of files
+        times_428 = np.array([dt(int(f[14:18]), int(f[18:20]), int(f[20:22]),
+                              int(f[23:25]), int(f[25:27]), int(f[27:29]))
+                              for f in files_428])
+        times_558 = np.array([dt(int(f[14:18]), int(f[18:20]), int(f[20:22]),
+                              int(f[23:25]), int(f[25:27]), int(f[27:29]))
+                              for f in files_558])
+        times_630 = np.array([dt(int(f[14:18]), int(f[18:20]), int(f[20:22]),
+                              int(f[23:25]), int(f[25:27]), int(f[27:29]))
+                              for f in files_630])
+        
+        # Convert datetime to integer timestamp
+        timestamps = np.array([int(t.timestamp()) for t in times_558])
+
+        # Warn if not the same number of files
+        if not len(files_428) == len(files_558) == len(files_630):
+            output.append('Warning: not the same number of files for each wavelength.')
+
+        # Read all of the images into seperate dask arrays for each wavelength
+        filepathnames_428 = dir_428 + '*.FITS'
+        darray_428 = dask_imread(filepathnames_428, imread=read_fits)
+
+        filepathnames_558 = dir_558 + '*.FITS'
+        darray_558 = dask_imread(filepathnames_558, imread=read_fits)
+
+        filepathnames_630 = dir_630 + '*.FITS'
+        darray_630 = dask_imread(filepathnames_630, imread=read_fits)
+
+        # Create a combined wavelength grayscale array
+        #...these values are for converting from RGB to grayscale
+        darray = darray_428*0.114 + darray_558*0.299 + darray_630*0.587
+    
+    # If not white create for specified wavelength
+    else:
+        # Get directory where images are stored
+        dir_wavelength = img_base_dir + str(date) + '-' + wavelength + '/'
+        
+        # Get a list of files
+        files_wavelength = sorted(os.listdir(dir_wavelength))
+        
+        # Extract times from filenames
+        times_wavelength = np.array([dt(int(f[14:18]), int(f[18:20]), int(f[20:22]),
+                              int(f[23:25]), int(f[25:27]), int(f[27:29]))
+                              for f in files_wavelength])
+        
+        # Convert datetime to integer timestamp
+        timestamps = np.array([int(t.timestamp()) for t in times_wavelength])
+        
+        # Read all images into dask array
+        filepathnames_wavelength = dir_wavelength + '*.FITS'
+        darray = dask_imread(filepathnames_wavelength, imread=read_fits)
+        
+        
+    
+    # Write images to h5 dataset
+    h5file = save_base_dir + 'all-images-' + str(date) + '-' + wavelength + '.h5'
+
+    with h5py.File(h5file, 'w') as h5f:
+
+        # Initialize the datasets for images and timestamps
+        img_ds = h5f.create_dataset('images', shape=darray.shape,
+                                    dtype='uint8')
+
+        time_ds = h5f.create_dataset('timestamps', shape=timestamps.shape,
+                                     dtype='uint64', data=timestamps)
+
+        # Add attributes to datasets
+        time_ds.attrs['about'] = ('UT POSIX Timestamp.'
+                                  'Use datetime.fromtimestamp '
+                                  'to convert.')
+        img_ds.attrs['wavelength'] = wavelength
+
+        # Loop through 100 images at a time
+        img_chunk = 100
+        for n_img, img in enumerate(darray[0::img_chunk]):
+
+            # Read all 100 images into a numpy array
+            img = np.array(darray[n_img*img_chunk:
+                                  n_img*img_chunk + img_chunk])
+
+            # Process the image
+            img = process_img(img, dt.fromtimestamp(timestamps[0]))
+
+            # Write image to dataset
+            img_ds[n_img*img_chunk:
+                   n_img*img_chunk+img_chunk:, :, :] = img
+
+            # Update how far along code is
+            rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
+            
+        # If specified to delete files, remove individual images
+        if del_files == True:
+            if wavelength == 'white':
+                shutil.rmtree(dir_428)
+                shutil.rmtree(dir_558)
+                shutil.rmtree(dir_630)
+            else:
+                shutil.rmtree(dir_wavelength)
+    
+    return output
 
 def create_pfrr_keogram(date, wavelength = '428',
                         save_fig = False, close_fig = True,
