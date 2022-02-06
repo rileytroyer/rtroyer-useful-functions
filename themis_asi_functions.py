@@ -378,7 +378,7 @@ def create_timestamped_movie(date, asi,
     
     # Select file with images
     img_file = (img_base_dir + asi + '/all-images-'
-                + asi + '-' + str(date) + '.h5')
+                + str(date) + '-' + asi + '.h5')
 
     themis_file = h5py.File(img_file, "r")
 
@@ -441,7 +441,7 @@ def create_timestamped_movie(date, asi,
 
     # Use ffmpeg writer to save animation
     event_movie_fn = (save_base_dir + asi + '/movies/' 
-                      + asi + '-' + str(date)
+                      + str(date) + '-' + asi
                       + '.mp4')
     writer = animation.writers['ffmpeg'](fps=fps)
     anim.save(event_movie_fn,

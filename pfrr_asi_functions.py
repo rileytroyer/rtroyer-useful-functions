@@ -236,7 +236,7 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
 
         return img
 
-    def process_img(img, time, high=99.5, low=0):
+    def process_img(img, time):
 
         """Function to process PFRR ASI image. Filters out bright and dark pixels
         then converts to 8-bit
@@ -247,12 +247,6 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
         time
             type: datetime
             about: time associated with image
-        high=99.5
-            type: float
-            about: bright percentile
-        low=0
-            type: float
-            about: dim percentile
         OUTPUT
         img
             type: array
