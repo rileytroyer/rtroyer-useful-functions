@@ -52,8 +52,13 @@ def download_themis_images(date, asi,
     month_url = year_url + str(date.month).zfill(2) + '/'
     
     # Create a directory to store files if it doesn't exist
+    if not os.path.exists(save_dir + asi + '/'):
+        os.mkdir(save_dir + asi + '/')
+    if not os.path.exists(save_dir + asi + '/individual-images/'):
+        os.mkdir(save_dir + asi + '/individual-images/')
+        
     img_dir = (save_dir + asi + '/individual-images/' 
-	      + str(date) + '/')
+               + str(date) + '/')
     if not os.path.exists(img_dir):
         os.mkdir(img_dir)
         
@@ -440,6 +445,9 @@ def create_timestamped_movie(date, asi,
 
 
     # Use ffmpeg writer to save animation
+    if not os.path.exists(save_base_dir + asi + '/movies/'):
+        os.mkdir(save_base_dir + asi + '/movies/')
+        
     event_movie_fn = (save_base_dir + asi + '/movies/' 
                       + str(date) + '-' + asi
                       + '.mp4')
