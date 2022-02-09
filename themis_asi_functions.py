@@ -8,7 +8,10 @@ Created on Thu Feb 13 16:08:25 2020
 
 import cdflib
 from datetime import datetime as dt
+import dask
+import dask.array as da
 import gc
+import glob
 import h5py
 from matplotlib import animation
 from matplotlib import colors as mcolors
@@ -17,6 +20,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import os
 import rtroyer_useful_functions as rt_func
+from scipy import ndimage
 import shutil
 import wget
 
@@ -99,79 +103,73 @@ def download_themis_images(date, asi,
             
             counter = counter + 1
 
-def create_image_stack(date, asi,
-                       img_base_dir = ('../data/themis-asi-data/'
-                       'themis-images/')):
-    """Function to create a numpy image stack from THEMIS images
-    DEPENDENCIES
-        os, cdflib, numpy, datetime.datetime, rtroyer_useful_functions
+def themis_asi_to_hdf5(date, asi, del_files = True,
+                       save_base_dir = ('../data/themis-asi-data/themis-images/'),
+                       img_base_dir = ('../data/themis-asi-data/themis-images/')
+                      ):
+    """Function to convert themis asi images
+    to 8-bit grayscale images and then write them to an h5 file.
     INPUT
     date
         type: datetime
-        about: day to process image files for
+        about: date to perform image conversion and storage for
     asi
         type: string
-        about: which asi to create stack for
-    img_base_dir = ('../data/themis-asi-data/'
-                       'themis-images/')
+        about: which THEMIS camera to use
+    del_files = True
+        type: bool
+        about: whether to delete the individual files after program runs
+    save_base_dir = ('../data/themis-asi-data/themis-images')
         type: string
-        about: base directory to where images are stored
+        about: base directory to save the images to
+    img_base_dir = ('../data/themis-asi-data/themis-images/')
+        type: string
+        about: base directory where the individual images are stored
     OUTPUT
-    all_images
-        type: array
-        about: array with all the image data
-    all_times
-        type: list
-        about: list with all of the timestamps for the images
-    """
-    
-    # Directory where images are stored
-    img_dir = (img_base_dir + asi + '/individual-images/' 
-               + str(date) + '/')
+    none
+    """    
+    def read_cdf(filename):
 
-    # All files for day
-    files = [f for f in os.listdir(img_dir) if not f.startswith('.')]
-    files = sorted(files)
-
-    # Initialize list to store all times in
-    all_times = []
-
-    # Loop through all images and store in array
-    for n, file in enumerate(files):
+        """Function to use cdflib to read in cdf file and 
+        output a numpy array
+        INPUT
+        filename
+            type: string
+            about: cdf file to be read in
+        OUTPUT
+        img
+            type: numpy array
+            about: image data array
+        """
 
         # Read in cdf file
-        cdf_file = cdflib.CDF(img_dir + file)
+        cdf_file = cdflib.CDF(filename)
 
         # Get images
-        images = cdf_file.varget('thg_asf_' + asi)
+        img = cdf_file.varget('thg_asf_' + asi)
 
-        # Make super bright values not nearly as bright
-        images[images>10000] = 10000
-    
-        # Get the dimest and brighest pixels
-        min_pixel = np.min(images)
-        max_pixel = np.max(images)
+        # Close file
+        cdf_file.close()
 
-        # Recast each image to 0 to 255 for uint8
-        for m, image in enumerate(images):
+        return img
 
-            # Remove any possible nan values
-            image = np.nan_to_num(image, nan=np.nanmin(image))
-            
-            # Shift values so lowest is zero
-            image = image - min_pixel
-            
-            # Make super bright values not nearly as bright
-            image[image>10000] = 10000
-            
-            # Convert to 0 to 255
-            image = image/max_pixel
-            image = image*255
+    def get_cdf_times(filename):
+        """Function to use cdflib to get times from cdf file and
+        output a list
+        INPUT
+            filename
+            type: string
+            about: cdf file to be read in
+        OUTPUT
+        times
+            type: list
+            about: list of times associated with images
+        """
 
-            # Write back to array
-            images[m, :, :] = image
+        # Read in cdf file
+        cdf_file = cdflib.CDF(filename)    
 
-        # And time
+        # Get epoch times
         times = cdf_file.varget('thg_asf_' + asi + '_epoch')
 
         # Convert time to datetime
@@ -179,89 +177,175 @@ def create_image_stack(date, asi,
                                            [0])
                  for t in times]
 
-        # If this is the first file initialize array
-        if n==0: 
-            all_images = images.astype(np.uint8)
+        # Close file
+        cdf_file.close()   
 
-        # Otherwise append it it
-        if n > 0:
-            all_images = np.append(all_images, images, axis=0)
+        return times
 
-        # Also append to all times list
-        all_times.extend(times)
-        
-        # Update progress
-        rt_func.update_progress((n+1)/len(files))
-        
-    return all_images, all_times
+    def get_cdf_dims(filename):
+        """Function to get the data dimensions from a CDF file
+        INPUT
+            filename
+            type: string
+            about: cdf file to be read in
+        OUTPUT
+        times
+            type: list
+            about: list with shape of data
+        """
 
-def store_images_hdf5(date, all_images, all_times, asi,
-                      del_files=False,
-                      save_dir = ('../data/themis-asi-data/'
-                                  'themis-images/'),
-                      img_base_dir = ('../data/themis-asi-data/'
-                                      'themis-images/')):
-    """Function to store an array of images to an HDF5 file.
-    DEPENDENCIES
-        h5py, shutil
-    INPUT
-    date
-        type: datetime
-        about: day to process image files for
-    all_images
-        type: array
-        about: array with all images
-    all_times
-        type: array
-        about: array with all times
-    asi
-        type: str
-        about: 4 letter themis asi camera
-    del_file = False
-        type: bool
-        about: whether to delete individual files after saving h5 file
-    save_dir = '../data/pfrr-asi-data/pfrr-images/'
-        type: str
-        about: where to save the images, program will create
-               separate directories for each day within this.
-    img_dir = '../data/pfrr-asi-data/pfrr-images/individual-images/'
-        type: str
-        about: where the individual images are stored.
-               This is used to delete files if specified.
-    OUTPUT
-    none
-    """
+        # Read in cdf file
+        cdf_file = cdflib.CDF(filename)
 
-    # Convert time to integer so it can be stored in h5
-    timestamps = [int(t.timestamp()) for t in all_times]
+        # Get image dimensions
+        info = cdf_file.varinq('thg_asf_' + asi)
 
-    # Create a new HDF5 file if it doesn't already exist
-    filename = 'all-images-' + asi + '-' + str(date) + '.h5'
-        
-    with h5py.File(save_dir + asi + '/' + filename, "w") as hdf5_file:
+        # Construct image shape
+        img_shape = (info['Last_Rec']+1, info['Dim_Sizes'][0], info['Dim_Sizes'][1])
 
-        # Create a dataset in the file for the images
-        dataset = hdf5_file.create_dataset('images',
-                                           np.shape(all_images),
-                                           dtype='uint8',
-                                           data=all_images)
+        # Close file
+        cdf_file.close()
+
+        return img_shape
+
+    def process_img(img, time):
+
+        """Function to process THEMIS ASI image. Plots in log scale and output
+        to 8-bit
+        INPUT
+        img
+            type: array
+            about: image data in array
+        time
+            type: datetime
+            about: time associated with image
+        OUTPUT
+        img
+            type: array
+            about: 8-bit processed image
+        """
+
+#         # First rotate the image as needed
+#         if time.year < 2018:
+#             angle = -90
+#         else:
+#             angle = 0
+        # Rotate image to north is at top
+        angle = 180
+        img = ndimage.rotate(img, angle=angle, reshape=False,
+                             mode='constant', cval=np.nanmin(img),
+                             axes=(2, 1))
         
-        # Also dataset for the times
-        dataset_time = hdf5_file.create_dataset('timestamps',
-                                                np.shape(timestamps),
-                                                dtype='uint64',
-                                                data=timestamps)
-        
-        # Include data attributes as well
-        dataset_time.attrs['about'] = ('UT POSIX Timestamp. '
-                                       'Use datetime.fromtimestamp '
-                                       'to convert.')
-        dataset.attrs['asi'] = asi
-        
-    # If specified delete all individual files
+        # Flip image so east is on left, to match looking up at sky
+        img = np.flip(img, axis=2)
+
+        # Make smallest pixel value zero
+        img = abs(img - np.min(img))
+
+        # Set a maximum pixel value
+        max_pixel_val = 2**16
+
+        # Set anything larger to this value
+        img[img>max_pixel_val] = max_pixel_val
+
+        # Logarithmically scale image
+        img = (255/np.sqrt(1 + max_pixel_val)) * np.sqrt(1 + img)
+
+        # Clip to 0 to 255
+        img[img>255] = 255
+
+        # Convert to uint8
+        img = img.astype('uint8')
+
+
+        return img
+
+
+    # Change directories to specific asi
+    img_base_dir = img_base_dir + asi + '/individual-images/'
+    save_base_dir = save_base_dir + asi + '/'
+    
+    # Check if directory to save to exits, if not create
+    if not os.path.exists(save_base_dir):
+        os.mkdir(save_base_dir)
+
+    output = []
+
+    # Directory where images are stored
+    img_dir = (img_base_dir + str(date) + '/')
+
+    # All files for day
+    files = [f for f in os.listdir(img_dir)]
+    files = sorted(files)
+
+    # Initialize list to store all times in
+    all_times = []
+
+    # Loop through all files and construct full list of times
+    for file in files:
+
+        # Append file times to master list
+        all_times.extend(get_cdf_times(img_dir + file))
+
+    # Convert times to array
+    all_times = np.array(all_times)
+
+    # Convert to integer timestamp for easier storage in h5 file
+    timestamps = np.array([int(t.timestamp()) for t in all_times])
+
+    # Read all images into dask array
+    filepathnames = glob.glob(img_dir + '*.cdf')
+
+    # Read files into dask array
+    #...this is a little tricky since not all the image stacks are the same dimension
+    darray = [dask.delayed(read_cdf)(fn) for fn in filepathnames]
+    darray = [da.from_delayed(darray[x],
+                              shape=get_cdf_dims(filepathnames[x]),
+                              dtype='uint16')
+              for x in np.arange(0, len(darray))]
+    darray = da.concatenate(darray, axis=0)
+
+    # Write images to h5 dataset
+    h5file = save_base_dir + 'all-images-' + str(date) + '-' + asi + '.h5'
+
+    with h5py.File(h5file, 'w') as h5f:
+
+        # Initialize the datasets for images and timestamps
+        img_ds = h5f.create_dataset('images', shape=darray.shape,
+                                    dtype='uint8')
+
+        time_ds = h5f.create_dataset('timestamps', shape=timestamps.shape,
+                                     dtype='uint64', data=timestamps)
+
+        # Add attributes to datasets
+        time_ds.attrs['about'] = ('UT POSIX Timestamp.'
+                                  'Use datetime.fromtimestamp '
+                                  'to convert.')
+        img_ds.attrs['wavelength'] = 'white'
+
+        # Loop through 1000 images at a time
+        img_chunk = 1000
+        for n_img, img in enumerate(darray[0::img_chunk]):
+
+            # Read all 100 images into a numpy array
+            img = np.array(darray[n_img*img_chunk:
+                                  n_img*img_chunk + img_chunk])
+
+            # Process the image
+            img = process_img(img, dt.fromtimestamp(timestamps[0]))
+
+            # Write image to dataset
+            img_ds[n_img*img_chunk:
+                   n_img*img_chunk+img_chunk:, :, :] = img
+
+            # Update how far along code is
+            rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
+
+    # If specified to delete files, remove individual images
     if del_files == True:
-        shutil.rmtree(img_base_dir + asi + '/individual-images/' 
-                      + str(date) + '/')
+        shutil.rmtree(img_dir)
+
+    return output
 
 def create_themis_keogram(date, asi,
                           save_fig = False, close_fig = True,
