@@ -316,6 +316,20 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
         # Warn if not the same number of files
         if not len(files_428) == len(files_558) == len(files_630):
             output.append('Warning: not the same number of files for each wavelength.')
+            
+            # If only off by 1 image remove last image from longer list
+            img_lengths = np.array([len(files_428),
+                                      len(files_558),
+                                      len(files_630)])
+            
+            if (np.max(img_lengths) - np.min(img_lengths)) < 2:
+                files_428 = files_428[0:np.min(img_lengths)]
+                files_558 = files_558[0:np.min(img_lengths)]
+                files_630 = files_630[0:np.min(img_lengths)]
+                output.append('Number of files only varied by 1, removing last files.')
+            else:
+                output.append('Number of files was greater than 1, will not create .h5 file.')
+            
 
         # Read all of the images into seperate dask arrays for each wavelength
         filepathnames_428 = dir_428 + '*.FITS'
