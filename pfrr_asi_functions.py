@@ -189,6 +189,7 @@ def download_pfrr_images(date,
             finished = True
 
 def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
+                     update_progress = True,
                                save_base_dir = ('../data/pfrr-asi-data/pfrr-images/'),
                                img_base_dir = ('../data/pfrr-asi-data/pfrr-images/'
                                           'individual-images/')):
@@ -205,6 +206,9 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
     del_files = True
         type: bool
         about: whether to delete the individual files after program runs
+    update_progress = True
+        type: bool
+        about: whether to update progress of creating the h5 file.
     save_base_dir = ('../data/pfrr-asi-data/pfrr-images')
         type: string
         about: base directory to save the images to
@@ -318,7 +322,7 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
                                       len(files_558),
                                       len(files_630)])
             
-            if (np.max(img_lengths) - np.min(img_lengths)) < 2:
+            if (np.max(img_lengths) - np.min(img_lengths)) < 3:
                 
                 # Fix files
                 files_428 = files_428[0:np.min(img_lengths)]
@@ -408,7 +412,8 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
                    n_img*img_chunk+img_chunk:, :, :] = img
 
             # Update how far along code is
-            rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
+            if update_progress == True:
+                rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
             
         # If specified to delete files, remove individual images
         if del_files == True:
