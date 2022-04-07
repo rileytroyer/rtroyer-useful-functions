@@ -298,6 +298,45 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
         files_428 = sorted(os.listdir(dir_428))
         files_558 = sorted(os.listdir(dir_558))
         files_630 = sorted(os.listdir(dir_630))
+        
+        # Read all of the images into seperate dask arrays for each wavelength
+        filepathnames_428 = dir_428 + '*.FITS'
+        darray_428 = dask_imread(filepathnames_428, imread=read_fits)
+
+        filepathnames_558 = dir_558 + '*.FITS'
+        darray_558 = dask_imread(filepathnames_558, imread=read_fits)
+
+        filepathnames_630 = dir_630 + '*.FITS'
+        darray_630 = dask_imread(filepathnames_630, imread=read_fits)
+        
+        # Warn if not the same number of files
+        if not len(files_428) == len(files_558) == len(files_630):
+            output.append('Warning: not the same number of files for each wavelength.')
+            
+            # If only off by 1 image remove last image from longer list
+            img_lengths = np.array([len(files_428),
+                                      len(files_558),
+                                      len(files_630)])
+            
+            if (np.max(img_lengths) - np.min(img_lengths)) < 2:
+                
+                # Fix files
+                files_428 = files_428[0:np.min(img_lengths)]
+                files_558 = files_558[0:np.min(img_lengths)]
+                files_630 = files_630[0:np.min(img_lengths)]
+                
+                # Also dask arrays
+                darray_428 = darray_428[0:np.min(img_lengths)]
+                darray_558 = darray_558[0:np.min(img_lengths)]
+                darray_630 = darray_630[0:np.min(img_lengths)]
+                
+                output.append('Number of files only varied by 1, removing last files.')
+            else:
+                output.append('Number of files was greater than 1, will not create .h5 file.')
+                
+        # Create a combined wavelength grayscale array
+        #...these values are for converting from RGB to grayscale
+        darray = darray_428*0.114 + darray_558*0.299 + darray_630*0.587
 
         # Extract a list of times for each list of files
         times_428 = np.array([dt(int(f[14:18]), int(f[18:20]), int(f[20:22]),
@@ -312,38 +351,6 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
         
         # Convert datetime to integer timestamp
         timestamps = np.array([int(t.timestamp()) for t in times_558])
-
-        # Warn if not the same number of files
-        if not len(files_428) == len(files_558) == len(files_630):
-            output.append('Warning: not the same number of files for each wavelength.')
-            
-            # If only off by 1 image remove last image from longer list
-            img_lengths = np.array([len(files_428),
-                                      len(files_558),
-                                      len(files_630)])
-            
-            if (np.max(img_lengths) - np.min(img_lengths)) < 2:
-                files_428 = files_428[0:np.min(img_lengths)]
-                files_558 = files_558[0:np.min(img_lengths)]
-                files_630 = files_630[0:np.min(img_lengths)]
-                output.append('Number of files only varied by 1, removing last files.')
-            else:
-                output.append('Number of files was greater than 1, will not create .h5 file.')
-            
-
-        # Read all of the images into seperate dask arrays for each wavelength
-        filepathnames_428 = dir_428 + '*.FITS'
-        darray_428 = dask_imread(filepathnames_428, imread=read_fits)
-
-        filepathnames_558 = dir_558 + '*.FITS'
-        darray_558 = dask_imread(filepathnames_558, imread=read_fits)
-
-        filepathnames_630 = dir_630 + '*.FITS'
-        darray_630 = dask_imread(filepathnames_630, imread=read_fits)
-
-        # Create a combined wavelength grayscale array
-        #...these values are for converting from RGB to grayscale
-        darray = darray_428*0.114 + darray_558*0.299 + darray_630*0.587
     
     # If not white create for specified wavelength
     else:
