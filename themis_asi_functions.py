@@ -294,7 +294,7 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
     timestamps = np.array([int(t.timestamp()) for t in all_times])
 
     # Read all images into dask array
-    filepathnames = glob.glob(img_dir + '*.cdf')
+    filepathnames = sorted(glob.glob(img_dir + '*.cdf'))
 
     # Read files into dask array
     #...this is a little tricky since not all the image stacks are the same dimension
