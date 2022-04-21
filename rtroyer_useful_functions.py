@@ -239,128 +239,7 @@ def send_email(message, password=None, receiver_email=None):
         server.login('riley.troyer.python@gmail.com', password)
         #...then send message
         server.sendmail(sender_email, receiver_email, message)
-
-# def read_pfisr_file(date_str, 
-#                     data_dir=('../data/pfisr-data/mswinds/')):
-
-#     """Function to read a pfisr data file and return the parameters 
-#     as numpy arrays. Requires data file to be downloaded.
-#     INPUT
-#     DEPENDENCIES
-#         os, h5py, numpy
-#     date_str
-#         type: string
-#         about: string with date to read file for, YYYYMMDD
-#     OUTPUT
-#     pfisr_time
-#         type: array of datetimes
-#         about: times for each pfisr measurement
-#     pfisr_alt
-#         type: array of floats
-#         about: altitudes for each pfisr measurement in kilometers
-#     e_density
-#         type: array of floats
-#         about: electron densities for each altitude and time (1/m^3)
-#     de_density
-#         type: array of floats
-#         about: error for each electron density measurement
-#     beam_az, beam_el
-#         type: array of floats
-#         about: azimuthal and elevation angles for all beams
-#     """
-#     # Read in the original pfisr file
-#     pfisr_files = os.listdir(data_dir)
-#     pfisr_files = [f for f in pfisr_files if f.endswith('.h5')]
-#     pfisr_file = [data_dir + f for f in pfisr_files if date_str in f][0]
-
-#     # Read in h5 file
-#     pfisr_file = h5py.File(pfisr_file, 'r')
-
-#     # Get the different beams and select specified angle
-#     beam_angle = 90
-#     beams = np.array(pfisr_file['BeamCodes'])
-
-#     # Get the beam with a 90 degree beam
-#     indexes = np.linspace(0, len(beams)-1, len(beams))
-#     beam = int(indexes[np.abs(beams[:,2] - beam_angle) == 0][0])
-
-#     # Read in PFISR data
-#     (pfisr_time, pfisr_alt,
-#      e_density, de_density,
-#      beam_az,
-#      beam_el) = get_pfisr_parameters(beam, pfisr_file,
-#                                      low_cutoff = 0, high_cutoff=1e12)
-
-#     return (pfisr_time, pfisr_alt, e_density, de_density,
-#             beam_az, beam_el)
         
-# def get_pfisr_parameters(beam_num, file, low_cutoff=0,
-#                          high_cutoff=1e20):
-#     """ Function to get time, altitude, and electron density for a
-#     specified beam
-#     INPUT
-#     beam_num
-#         type: int
-#         about: pfisr beam number
-#     file
-#         type: h5py file
-#         about: file containing all of the pfisr data
-#     low_cutoff=0
-#         type: int
-#         about: values below this will be set to this value
-#     high_cutoff=1e20
-#         type: int
-#         about: values above this will be set to this value
-#     OUTPUT
-#     utc_time
-#         type: datetime array
-#         about: array of times corresponding to data
-#     altitude
-#         type: float array
-#         about: array of altitudes for pfisr data
-#     e_density
-#         type: float array
-#         about: array of electron density pfisr data
-#     de_density
-#         type: float array
-#         about: array of error in electron density data
-#     beam_az
-#         type: float array
-#         about: array of azimuthal pfisr beam angles
-#     beam_el
-#         type: float array
-#         about: array of elevation pfisr beam angles
-#     """
-#     # Convert timestamps to datetime object
-#     #...use starting time as timestamp
-#     unix_time = np.array(file['Time']['UnixTime'])[:,0]
-#     utc_time = np.array([datetime.datetime.utcfromtimestamp(d)
-#                          for d in unix_time])
-
-#     # Get the altitude array
-#     altitude = np.array(file['NeFromPower']['Altitude'])[beam_num, :]
-#     #...convert to kilometers
-#     altitude = altitude/1000
-
-#     # Get the uncorrected number density array
-#     e_density = np.array(file['NeFromPower']
-#                          ['Ne_NoTr'])[:, beam_num, :]
-#     #...and error
-#     de_density = np.array(file['NeFromPower']
-#                           ['errNe_NoTr'])[:, beam_num, :]
-#     de_density = np.transpose(de_density)
-#     #...and filter it assuming data outside of range is bad
-#     e_density[e_density < low_cutoff] = 0.0
-#     e_density[e_density > high_cutoff] = 0.0
-#     #...and take the transpose
-#     e_density = np.transpose(e_density)
-
-#     # Get information about the beam look direction
-#     beam_az = np.round(np.array(file['BeamCodes'])[:, 1], 1)
-#     beam_el = np.round(np.array(file['BeamCodes'])[:, 2], 1)
-
-#     return (utc_time, altitude, e_density,
-#             de_density, beam_az, beam_el)
 
 def get_isr_data(pfisr_filename, pfisr_data_dir):
     """Function to get relevant data from PFISR datafile.
@@ -415,13 +294,28 @@ def get_isr_data(pfisr_filename, pfisr_data_dir):
     
     # Find the noise floor by averaging between 55km and 60km
     #...assume this should be zero
-    noise_floor = np.nanmean(e_density[(pfisr_altitude > 55000)
-                                    & (pfisr_altitude < 60000), :],
-                          axis=0)
     
+    # Calculate the power given that power = density/range^2
+    pfisr_range = np.array(pfisr_file['NeFromPower']
+                           ['Range'])[0, :]
+
+    # Turn 1D array into 2D array for elementwise division
+    pfisr_range = np.array([pfisr_range,]*e_density.shape[1])
+    pfisr_range = np.transpose(pfisr_range)
+    pfisr_power = np.divide(e_density, pfisr_range**2)
+
+    # Get the power bias
+    noise_floor = np.nanmean(pfisr_power[(pfisr_altitude > 55000)
+                                    & (pfisr_altitude < 60000), :],
+                              axis=0)
+
     # Loop through each column and subtract off noise floor
-    for j in range(e_density.shape[1]):
-        e_density[:, j] = e_density[:, j] - noise_floor[j]
+    for j in range(pfisr_power.shape[1]):
+        pfisr_power[:, j] = pfisr_power[:, j] - noise_floor[j]   
+
+    # Calculate new unbiased density
+    e_density = np.multiply(pfisr_power, pfisr_range**2)
+        
     
     # Get error values
     try:
@@ -438,6 +332,7 @@ def get_isr_data(pfisr_filename, pfisr_data_dir):
     pfisr_file.close()
     
     return utc_time, unix_time, pfisr_altitude, e_density, de_density
+
 
 def reduced_chi_squared(observed, modeled, errors):
     """Function to calculate the chi square test for PFISR data.
