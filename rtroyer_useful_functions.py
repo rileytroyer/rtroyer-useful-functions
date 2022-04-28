@@ -254,6 +254,9 @@ def get_isr_data(pfisr_filename, pfisr_data_dir):
     utc_time
         type: array of datetimes
         about: time stamp for the start of each measurement
+    unix_time
+        type: array of floats
+        about: unix timestamp for start of each measurement
     pfisr_altitude
         type: array of float
         about: altitude stamp for each measurement in meters
