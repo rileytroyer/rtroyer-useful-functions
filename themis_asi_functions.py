@@ -28,8 +28,7 @@ import wget
 def download_themis_images(date, asi,
                            base_url=('http://themis.ssl.berkeley.edu'
                                      + '/data/themis/thg/l1/asi/'),
-                           save_dir = ('../data/themis-asi-data/'
-                                       'themis-images/')):
+                           save_dir = ('../../../asi-data/themis/')):
     """Function to download themis images for a specified date.
     DEPENDENCIES
         os, wget
@@ -40,9 +39,12 @@ def download_themis_images(date, asi,
     asi
         type: string
         about: 4 letter themis station
-    base_url
+    base_url =('http://themis.ssl.berkeley.edu/data/themis/thg/l1/asi/')
         type: string
         about: online database of images
+    save_dir = ('../../../asi-data/themis/')
+        type:
+        about: directory where downloaded images will be saved to
     OUTPUT
     none
     """
@@ -76,6 +78,9 @@ def download_themis_images(date, asi,
     file_urls = [f for f in file_urls if not day_str + '_' in f]
     file_urls = sorted(file_urls)
     
+    if len(file_urls) < 1:
+        print('No files are available for this day.')
+    
     # Download each of the files
     for n, file_url in enumerate(file_urls):
         
@@ -104,8 +109,9 @@ def download_themis_images(date, asi,
             counter = counter + 1
 
 def themis_asi_to_hdf5(date, asi, del_files = True,
-                       save_base_dir = ('../data/themis-asi-data/themis-images/'),
-                       img_base_dir = ('../data/themis-asi-data/themis-images/')
+                       save_base_dir = ('../../../asi-data/themis/'),
+                       img_base_dir = ('../../../asi-data/themis/'),
+                       skymap_dir = ('../reference/themis-asi-calibration/')
                       ):
     """Function to convert themis asi images
     to 8-bit grayscale images and then write them to an h5 file.
@@ -119,12 +125,15 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
     del_files = True
         type: bool
         about: whether to delete the individual files after program runs
-    save_base_dir = ('../data/themis-asi-data/themis-images')
+    save_base_dir = ('../../../asi-data/themis/')
         type: string
         about: base directory to save the images to
-    img_base_dir = ('../data/themis-asi-data/themis-images/')
+    img_base_dir = ('../../../asi-data/themis/')
         type: string
         about: base directory where the individual images are stored
+    skymap_dir = ('../reference/themis-asi-calibration/')
+        type: string
+        about: directory where skymap files are stored
     OUTPUT
     none
     """    
@@ -225,20 +234,6 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
             about: 8-bit processed image
         """
 
-#         # First rotate the image as needed
-#         if time.year < 2018:
-#             angle = -90
-#         else:
-#             angle = 0
-        # Rotate image to north is at top
-        angle = 180
-        img = ndimage.rotate(img, angle=angle, reshape=False,
-                             mode='constant', cval=np.nanmin(img),
-                             axes=(2, 1))
-        
-        # Flip image so east is on left, to match looking up at sky
-        img = np.flip(img, axis=2)
-
         # Make smallest pixel value zero
         img = abs(img - np.min(img))
 
@@ -259,7 +254,63 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
 
 
         return img
+    
+    def get_skymaps():
+        """Function to get skymap info from files. Find correct file for
+        imager and newest skymap based on image date
+        INPUT
+        none
+        OUTPUT
+        skymap_glat
+            type: array
+            about: geographic latitude for each pixel in image
+        skymap_glon
+            type: array
+            about: geographic longitude for each pixel in image
+        skymap_mlat
+            type: array
+            about: magnetic latitude for each pixel in image
+        skymap_mlon
+            type: array
+            about: magnetic longitude for each pixel in image
+        """
 
+        # First look for the correct file
+        skymap_filenames = os.listdir(skymap_dir)
+
+        # Select only files for specified imager
+        skymap_filenames = sorted([f for f in skymap_filenames if asi in f])
+
+        # Read in the cdf file
+        skymap_cdf = cdflib.CDF(skymap_dir + skymap_filenames[1])
+
+        # Get times from file
+        skymap_time = skymap_cdf.varget('thg_asf_' + asi + '_time')
+
+        # Convert to datetime
+        skymap_time = [dt.utcfromtimestamp(t).date() for t in skymap_time]
+
+        # Find the index value of the closest past time
+        time_diff = np.array([(date - d).total_seconds() for d in skymap_time])
+        smallest_diff = min([s for s in time_diff if s > 0])
+        cal_index = np.argwhere(time_diff == smallest_diff)[0][0]
+
+        # Read in latitude and longitude for each pixel corner
+        #...leave out the last value, so dimensions match with image, 
+        #...not sure why they don't
+        skymap_glat = skymap_cdf.varget('thg_asf_' + asi + '_glat')[cal_index, :-1,
+                                                                    :-1]
+        skymap_glon = skymap_cdf.varget('thg_asf_' + asi + '_glon')[cal_index, :-1,
+                                                                    :-1] - 360
+        skymap_mlat = skymap_cdf.varget('thg_asf_' + asi + '_mlat')[cal_index, :-1,
+                                                                    :-1]
+        skymap_mlon = skymap_cdf.varget('thg_asf_' + asi + '_mlon')[cal_index, :-1,
+                                                                    :-1] - 360
+
+        # Close CDF file
+        skymap_cdf.close()
+
+        return skymap_glat, skymap_glon, skymap_mlat, skymap_mlon
 
     # Change directories to specific asi
     img_base_dir = img_base_dir + asi + '/individual-images/'
@@ -304,6 +355,10 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
                               dtype='uint16')
               for x in np.arange(0, len(darray))]
     darray = da.concatenate(darray, axis=0)
+    
+    # Get skymaps
+    (skymap_glat, skymap_glon,
+     skymap_mlat, skymap_mlon) = get_skymaps()
 
     # Write images to h5 dataset
     h5file = save_base_dir + 'all-images-' + str(date) + '-' + asi + '.h5'
@@ -316,12 +371,28 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
 
         time_ds = h5f.create_dataset('timestamps', shape=timestamps.shape,
                                      dtype='uint64', data=timestamps)
+        
+        glat_ds = h5f.create_dataset('skymap_glat', shape=skymap_glat.shape,
+                                     dtype='float', data=skymap_glat)
+        
+        glon_ds = h5f.create_dataset('skymap_glon', shape=skymap_glon.shape,
+                                     dtype='float', data=skymap_glon)
+        
+        mlat_ds = h5f.create_dataset('skymap_mlat', shape=skymap_mlat.shape,
+                                     dtype='float', data=skymap_mlat)
+        
+        mlon_ds = h5f.create_dataset('skymap_mlon', shape=skymap_mlon.shape,
+                                     dtype='float', data=skymap_mlon)
 
         # Add attributes to datasets
         time_ds.attrs['about'] = ('UT POSIX Timestamp.'
                                   'Use datetime.fromtimestamp '
                                   'to convert.')
         img_ds.attrs['wavelength'] = 'white'
+        glat_ds.attrs['about'] = 'Geographic latitude at pixel corner'
+        glon_ds.attrs['about'] = 'Geographic longitude at pixel corner'
+        mlat_ds.attrs['about'] = 'Magnetic latitude at pixel corner'
+        mlon_ds.attrs['about'] = 'Magnetic longitude at pixel corner'
 
         # Loop through 1000 images at a time
         img_chunk = 1000
@@ -446,8 +517,8 @@ def create_themis_keogram(date, asi,
         gc.collect()
 
 def create_timestamped_movie(date, asi,
-                 save_base_dir = '../data/themis-asi-data/themis-images/',
-                 img_base_dir = '../data/themis-asi-data/themis-images/'
+                 save_base_dir = '../../../asi-data/themis/',
+                 img_base_dir = '../../../asi-data/themis/'
                 ):
     
     """Function to create a movie from THEMIS ASI files with a timestamp and frame number.
@@ -461,6 +532,12 @@ def create_timestamped_movie(date, asi,
     asi
         type: str
         about: 4 letter themis asi location
+    save_base_dir = '../../../asi-data/themis/'
+        type: string
+        about: where to save the movie files to
+    img_base_dir = '../../../asi-data/themis/'
+        type: string
+        about: where the image files are stored
     OUTPUT
     none
     """
