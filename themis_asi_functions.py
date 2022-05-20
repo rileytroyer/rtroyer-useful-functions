@@ -418,103 +418,103 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
 
     return output
 
-def create_themis_keogram(date, asi,
-                          save_fig = False, close_fig = True,
-                          save_base_dir = ('../figures/themis-figures/'),
-                          img_base_dir = ('../data/themis-asi-data/'
-                                           'themis-images/')):
-    """Function to create a keogram image for THEMIS camera.
-    DEPENDENCIES
-        h5py, datetime.datetime, numpy, matplotlib.pyplot, 
-        matplotlib.colors, matplotlib.dates, gc
-    INPUT
-    date
-        type: datetime
-        about: date to download images from
-    asi
-        type: string
-        about: 4 letter themis station
-    save_fig = False
-        type: bool
-        about: whether to save the figure or not
-    close_fig = True
-        type: bool
-        about: whether to close the figure, useful when producing 
-                many plots
-    """
+# def create_themis_keogram(date, asi,
+#                           save_fig = False, close_fig = True,
+#                           save_base_dir = ('../figures/themis-figures/'),
+#                           img_base_dir = ('../data/themis-asi-data/'
+#                                            'themis-images/')):
+#     """Function to create a keogram image for THEMIS camera.
+#     DEPENDENCIES
+#         h5py, datetime.datetime, numpy, matplotlib.pyplot, 
+#         matplotlib.colors, matplotlib.dates, gc
+#     INPUT
+#     date
+#         type: datetime
+#         about: date to download images from
+#     asi
+#         type: string
+#         about: 4 letter themis station
+#     save_fig = False
+#         type: bool
+#         about: whether to save the figure or not
+#     close_fig = True
+#         type: bool
+#         about: whether to close the figure, useful when producing 
+#                 many plots
+#     """
     
-    # Select file with images
-    img_file = (img_base_dir + asi + '/all-images-'
-                + asi + '-' + str(date) + '.h5')
+#     # Select file with images
+#     img_file = (img_base_dir + asi + '/all-images-'
+#                 + asi + '-' + str(date) + '.h5')
 
-    themis_file = h5py.File(img_file, "r")
+#     themis_file = h5py.File(img_file, "r")
 
-    # Get times from file
-    all_times = [dt.fromtimestamp(d) for d in themis_file['timestamps']]
+#     # Get times from file
+#     all_times = [dt.fromtimestamp(d) for d in themis_file['timestamps']]
 
-    # Get all the images too
-    all_images = themis_file['images']
+#     # Get all the images too
+#     all_images = themis_file['images']
 
-    # Get keogram slices
-    keogram_img = all_images[:, :, int(all_images.shape[2]/2)]
+#     # Get keogram slices
+#     keogram_img = all_images[:, :, int(all_images.shape[2]/2)]
     
-    # Do some minor processing to keogram
+#     # Do some minor processing to keogram
     
-    # Replace nans with smallest value
-    keogram_img = np.nan_to_num(keogram_img,
-                                nan=np.nanmin(keogram_img))
+#     # Replace nans with smallest value
+#     keogram_img = np.nan_to_num(keogram_img,
+#                                 nan=np.nanmin(keogram_img))
     
-    # Rotate by 90 degrees counterclockwise
-    keogram_img = np.rot90(keogram_img)
+#     # Rotate by 90 degrees counterclockwise
+#     keogram_img = np.rot90(keogram_img)
     
-    # Finally flip, so north is at top in mesh plot
-    keogram_img = np.flip(keogram_img, axis=0)
+#     # Finally flip, so north is at top in mesh plot
+#     keogram_img = np.flip(keogram_img, axis=0)
 
-    # Construct time and altitude angle meshes to plot against
-    altitudes = np.linspace(0, 180, keogram_img.shape[0])
-    time_mesh, alt_mesh = np.meshgrid(all_times, altitudes)
+#     # Construct time and altitude angle meshes to plot against
+#     altitudes = np.linspace(0, 180, keogram_img.shape[0])
+#     time_mesh, alt_mesh = np.meshgrid(all_times, altitudes)
 
-    # Setup figure
-    fig, ax = plt.subplots()
+#     # Setup figure
+#     fig, ax = plt.subplots()
 
-    # Plot keogram as colormesh
-    ax.pcolormesh(time_mesh, alt_mesh, keogram_img,
-                  norm=mcolors.LogNorm(),
-                  cmap='gray', shading='auto')
+#     # Plot keogram as colormesh
+#     ax.pcolormesh(time_mesh, alt_mesh, keogram_img,
+#                   norm=mcolors.LogNorm(),
+#                   cmap='gray', shading='auto')
 
-    # Axis and labels
-    ax.set_title('keogram of ' + str(date),
-                 fontweight='bold', fontsize=14)
-    ax.set_ylabel('Azimuth Angle (S-N)',
-                  fontweight='bold', fontsize=14)
-    ax.set_xlabel('UT1 Time (HH:MM)',
-                  fontweight='bold', fontsize=14)
-    fig.autofmt_xdate()
-    h_fmt = mdates.DateFormatter('%H:%M')
-    ax.xaxis.set_major_formatter(h_fmt)
-    ax.tick_params(axis='x', which='major', labelsize=14)
-    ax.tick_params(axis='y', which='major', labelsize=14)
+#     # Axis and labels
+#     ax.set_title('keogram of ' + str(date),
+#                  fontweight='bold', fontsize=14)
+#     ax.set_ylabel('Azimuth Angle (S-N)',
+#                   fontweight='bold', fontsize=14)
+#     ax.set_xlabel('UT1 Time (HH:MM)',
+#                   fontweight='bold', fontsize=14)
+#     fig.autofmt_xdate()
+#     h_fmt = mdates.DateFormatter('%H:%M')
+#     ax.xaxis.set_major_formatter(h_fmt)
+#     ax.tick_params(axis='x', which='major', labelsize=14)
+#     ax.tick_params(axis='y', which='major', labelsize=14)
 
-    plt.tight_layout()
+#     plt.tight_layout()
 
-    # Save the figure if specified
-    if save_fig == True:
-        save_dir = (save_base_dir + asi + '-keograms/')
-        plt.savefig(save_dir + asi + '-' + str(date) + '.jpg', 
-                    dpi=250)
+#     # Save the figure if specified
+#     if save_fig == True:
+#         save_dir = (save_base_dir + asi + '-keograms/')
+#         plt.savefig(save_dir + asi + '-' + str(date) + '.jpg', 
+#                     dpi=250)
 
-    # Close the figure and all associated
-    #...not sure if I need to clear all of these
-    #...but figure it doesn't hurt
-    if close_fig == True:
-        #...axis
-        plt.cla()
-        #...figure
-        plt.clf()
-        #...figure windows
-        plt.close('all')
-        #...clear memory
-        gc.collect()
+#     # Close the figure and all associated
+#     #...not sure if I need to clear all of these
+#     #...but figure it doesn't hurt
+#     if close_fig == True:
+#         #...axis
+#         plt.cla()
+#         #...figure
+#         plt.clf()
+#         #...figure windows
+#         plt.close('all')
+#         #...clear memory
+#         gc.collect()
 
 def create_timestamped_movie(date, asi,
                  save_base_dir = '../../../asi-data/themis/',
@@ -568,7 +568,7 @@ def create_timestamped_movie(date, asi,
     axpic.axis('off')
 
     # Plot the image
-    img = axpic.imshow(all_images[0],
+    img = axpic.imshow(np.flipud(all_images[0]),
                        cmap='gray', animated=True)
 
     # Add frame number and timestamp to video
@@ -586,7 +586,7 @@ def create_timestamped_movie(date, asi,
         """Function to update the animation"""
 
         # Set new image data
-        img.set_data(all_images[frame])
+        img.set_data(np.flipud(all_images[frame]))
         # And the frame number
         frame_num.set_text(str(frame).zfill(5))
         #...and time
