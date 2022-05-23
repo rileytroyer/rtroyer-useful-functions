@@ -282,7 +282,7 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
         skymap_filenames = sorted([f for f in skymap_filenames if asi in f])
 
         # Read in the cdf file
-        skymap_cdf = cdflib.CDF(skymap_dir + skymap_filenames[1])
+        skymap_cdf = cdflib.CDF(skymap_dir + skymap_filenames[-1])
 
         # Get times from file
         skymap_time = skymap_cdf.varget('thg_asf_' + asi + '_time')
