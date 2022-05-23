@@ -306,11 +306,22 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
                                                                     :-1]
         skymap_mlon = skymap_cdf.varget('thg_asf_' + asi + '_mlon')[cal_index, :-1,
                                                                     :-1] - 360
+        
+        # Also get azimuth and elevation values
+        skymap_elev = skymap_cdf.varget('thg_asf_' + asi + '_elev')[cal_index, :, :]
+        skymap_azim = skymap_cdf.varget('thg_asf_' + asi + '_azim')[cal_index, :, :]
+        
+        # Get the station latitude and longitude
+        station_glat = skymap_cdf.varget('thg_asc_' + asi + '_glat')
+        station_glon = skymap_cdf.varget('thg_asc_' + asi + '_glon')
 
         # Close CDF file
         skymap_cdf.close()
 
-        return skymap_glat, skymap_glon, skymap_mlat, skymap_mlon
+        return (skymap_glat, skymap_glon,
+                skymap_mlat, skymap_mlon,
+                skymap_elev, skymap_azim,
+                station_glat, station_glon)
 
     # Change directories to specific asi
     img_base_dir = img_base_dir + asi + '/individual-images/'
@@ -358,7 +369,9 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
     
     # Get skymaps
     (skymap_glat, skymap_glon,
-     skymap_mlat, skymap_mlon) = get_skymaps()
+     skymap_mlat, skymap_mlon,
+     skymap_elev, skymap_azim,
+     station_glat, station_glon) = get_skymaps()
 
     # Write images to h5 dataset
     h5file = save_base_dir + 'all-images-' + str(date) + '-' + asi + '.h5'
@@ -383,16 +396,26 @@ def themis_asi_to_hdf5(date, asi, del_files = True,
         
         mlon_ds = h5f.create_dataset('skymap_mlon', shape=skymap_mlon.shape,
                                      dtype='float', data=skymap_mlon)
+        
+        elev_ds = h5f.create_dataset('skymap_elev', shape=skymap_elev.shape,
+                                     dtype='float', data=skymap_elev)
+        
+        azim_ds = h5f.create_dataset('skymap_azim', shape=skymap_azim.shape,
+                                     dtype='float', data=skymap_azim)
 
         # Add attributes to datasets
         time_ds.attrs['about'] = ('UT POSIX Timestamp.'
                                   'Use datetime.fromtimestamp '
                                   'to convert.')
         img_ds.attrs['wavelength'] = 'white'
+        img_ds.attrs['station_latitude'] = station_glat
+        img_ds.attrs['station_longitude'] = station_glon
         glat_ds.attrs['about'] = 'Geographic latitude at pixel corner'
         glon_ds.attrs['about'] = 'Geographic longitude at pixel corner'
         mlat_ds.attrs['about'] = 'Magnetic latitude at pixel corner'
         mlon_ds.attrs['about'] = 'Magnetic longitude at pixel corner'
+        elev_ds.attrs['about'] = 'Elevation angle of pixel center'
+        azim_ds.attrs['about'] = 'Azimuthal angle of pixel center'
 
         # Loop through 1000 images at a time
         img_chunk = 1000
