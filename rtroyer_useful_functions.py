@@ -204,42 +204,7 @@ def mask_image(image, x_shift, y_shift, radius,
     image[image.shape[1] - (edge+1):, :] = black
     image[:, image.shape[1] - (edge+1):] = black
     
-    return image
-
-def send_email(message, password=None, receiver_email=None):
-    """Function to send an email notification.
-    INPUT
-    message
-        type: str
-        about: Should be in form of Subject: subject \n
-               message.
-    password=None
-        type: str
-        about: password to sender account
-   receiver_email=None
-        type: string
-        about: email address to send email to
-    OUTPUT
-    none
-    """
-    #...sending email
-    #sender_email = 
-    #...password to google account
-    #password =
-    #...receiving email
-    #receiver_email =
-    #...connect to this port, required for Gmail
-    port = 465
-
-    # Create a secure SSL context
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL('smtp.gmail.com',
-                          port, context=context) as server:
-        # Login
-        server.login('riley.troyer.python@gmail.com', password)
-        #...then send message
-        server.sendmail(sender_email, receiver_email, message)
-        
+    return image        
 
 def get_isr_data(pfisr_filename, pfisr_data_dir):
     """Function to get relevant data from PFISR datafile.
