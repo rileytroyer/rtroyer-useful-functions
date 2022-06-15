@@ -223,11 +223,11 @@ def send_email(message, password=None, receiver_email=None):
     none
     """
     #...sending email
-    sender_email = 'riley.troyer.python@gmail.com'
+    #sender_email = 
     #...password to google account
-    password = 'Aurora557'
+    #password =
     #...receiving email
-    receiver_email = 'riley.troyer94@icloud.com'
+    #receiver_email =
     #...connect to this port, required for Gmail
     port = 465
 
