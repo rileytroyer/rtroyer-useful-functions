@@ -184,7 +184,7 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
 
         # Set anything larger to this value
         img[img>max_pixel_val] = max_pixel_val
-
+        
         # Scale image
         img = (255/numpy.sqrt(1 + max_pixel_val)) * numpy.sqrt(1 + img)
 
