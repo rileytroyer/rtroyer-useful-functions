@@ -228,6 +228,9 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
     # Directory with images
     tmp_img_dir = save_dir + asi + '/tmp/' + str(date.date()) + '/'
     
+    if not os.path.exists(tmp_img_dir):
+        logging.critical('Images are not downloaded. Try running download_themis_images.')
+    
     # Read in skymap
     skymap_file = [f for f in os.listdir(tmp_img_dir) if f.endswith('.sav')][0]
 
@@ -258,7 +261,6 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
     # Does the downloaded image directory exists?
     if not os.path.exists(tmp_img_dir):
         logging.critical('Images do not exist at {}'.format(tmp_img_dir))
-        raise
 
     hour_dirs = os.listdir(tmp_img_dir)
     hour_dirs = sorted([d for d in hour_dirs if d.startswith('ut')])
