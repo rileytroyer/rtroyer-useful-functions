@@ -670,9 +670,8 @@ def create_timestamped_movie(date, asi, workers=1,
         video.write_videofile(full_movie_pathname)
 
     except Exception as e:
-        logging.critical('There was an issue creating the full movie file. Stopping.')
-        logging.critical('Exception: {}'.format(e))
-        raise
+        logging.warning('There was an issue creating the full movie file. Stopping.')
+        logging.warning('Exception: {}'.format(e))
 
     logging.info('Full movie file created. Deleting tmp files.')
 
