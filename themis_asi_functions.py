@@ -339,8 +339,17 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
                 time_ds[-timestamps.shape[0]:] = timestamps
 
         except Exception as e:
-            logging.critical('Unable to write images to file. Stopping.')
+            logging.critical('Unable to write images to file. Stopping.'
+                             ' Deleting h5 file and, if specified, images.')
             logging.critical('Exception: {}'.format(e))
+            
+            # Delete h5 file
+            os.remove(h5file)
+            
+            # Delete the raw image files if specified
+            if del_files == True:
+                logging.info('Deleting directory: {}'.format(tmp_img_dir))
+                shutil.rmtree(tmp_img_dir)
             raise
 
         # Add attributes to datasets
