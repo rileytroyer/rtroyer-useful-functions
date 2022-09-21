@@ -97,12 +97,12 @@ def download_themis_images(date, asi, save_dir = '../../../asi-data/themis/'):
     # Does directory exist for imager?
     save_asi_dir = save_dir + asi + '/'
     if not os.path.exists(save_asi_dir):
-        os.mkdir(save_asi_dir)
+        os.makedirs(save_asi_dir)
 
     # Does a temporary directory for raw images and skymap files exist?
     tmp_dir = save_asi_dir + 'tmp/'
     if not os.path.exists(tmp_dir):
-        os.mkdir(tmp_dir)
+        os.makedirs(tmp_dir)
 
     tmp_img_dir = tmp_dir + str(date.date()) + '/'
     if not os.path.exists(tmp_img_dir):
