@@ -144,8 +144,13 @@ def download_themis_images(date, asi, save_dir = '../../../asi-data/themis/'):
     logging.info('Finished download script for {} and {}.'.format(asi, date.date()))
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 def themis_asi_to_hdf5(date, asi, del_files = False, workers = 1,
                        save_dir = ('../../../asi-data/themis/')):
+=======
+def themis_asi_to_hdf5(date, asi, del_files = False,
+                       save_dir = ('../../../asi-data/themis/'), workers=2):
+>>>>>>> 9525a6b509786f5e3e0241a7c44676e4421cb0a2
 =======
 def themis_asi_to_hdf5(date, asi, del_files = False,
                        save_dir = ('../../../asi-data/themis/'), workers=2):
@@ -265,11 +270,17 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
             img = (im_scaled // 256)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         # Set a maximum pixel value
         max_pixel_val = (2**16)/10
 
         # Set anything larger to this value
         img[img>max_pixel_val] = max_pixel_val
+=======
+        elif method == 'relu':
+            im_scaled = relu(img[:, :, :], cmin=3000, cmax=14000, pivot=0.06, ratio=2)
+            img = (im_scaled // 256)
+>>>>>>> 9525a6b509786f5e3e0241a7c44676e4421cb0a2
 =======
         elif method == 'relu':
             im_scaled = relu(img[:, :, :], cmin=3000, cmax=14000, pivot=0.06, ratio=2)
