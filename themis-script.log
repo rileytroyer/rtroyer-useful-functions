@@ -529,3 +529,55 @@
 2022-09-24 13:51:23 INFO     Combining tmp movies into one file at: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/movies/full-movie-2018-03-10-pina.mp4.
 2022-09-24 13:52:34 INFO     Full movie file created. Deleting tmp files.
 2022-09-24 13:52:34 INFO     Finished timestamped movie script for pina and 2018-03-10.
+2022-09-27 17:00:02 INFO     test code start
+2022-09-27 17:00:02 INFO     Starting h5 file creation script for pina and 2018-03-10...
+2022-09-27 17:00:02 INFO     Read in skymap file from: themis_skymap_pina_20170930-+_vXX.sav
+2022-09-27 17:00:02 INFO     Processing and writing images to file...
+2022-09-27 17:00:04 CRITICAL Unable to write images to file. Stopping. Deleting h5 file and, if specified, images.
+2022-09-27 17:00:04 CRITICAL Exception: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()
+2022-09-27 17:03:03 INFO     test code start
+2022-09-27 17:03:03 INFO     Starting h5 file creation script for pina and 2018-03-10...
+2022-09-27 17:03:03 INFO     Read in skymap file from: themis_skymap_pina_20170930-+_vXX.sav
+2022-09-27 17:03:03 INFO     Processing and writing images to file...
+2022-09-27 17:03:06 CRITICAL Unable to write images to file. Stopping. Deleting h5 file and, if specified, images.
+2022-09-27 17:03:06 CRITICAL Exception: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()
+2022-09-27 17:04:19 INFO     test code start
+2022-09-27 17:04:19 INFO     Starting h5 file creation script for pina and 2018-03-10...
+2022-09-27 17:04:19 INFO     Read in skymap file from: themis_skymap_pina_20170930-+_vXX.sav
+2022-09-27 17:04:19 INFO     Processing and writing images to file...
+2022-09-27 17:05:23 INFO     Finished h5 file creation script for pina and 2018-03-10. File is saved to: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/all-images-2018-03-10-pina.h5
+2022-09-27 17:05:23 INFO     Starting timestamped movie script for pina and 2018-03-10.
+2022-09-27 17:05:23 INFO     Reading in h5 file: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/all-images-2018-03-10-pina.h5
+2022-09-27 17:05:26 INFO     Starting 1 movie creating processes. Tmp movies will be combined into one at the end.
+2022-09-27 17:12:51 INFO     Finished creating tmp movies.
+2022-09-27 17:12:51 INFO     Combining tmp movies into one file at: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/movies/full-movie-2018-03-10-pina.mp4.
+2022-09-27 17:14:06 INFO     Full movie file created. Deleting tmp files.
+2022-09-27 17:14:06 INFO     Finished timestamped movie script for pina and 2018-03-10.
+2022-09-27 18:23:02 INFO     test code start
+2022-09-27 18:23:02 INFO     Starting h5 file creation script for pina and 2018-03-10...
+2022-09-27 18:23:02 INFO     Read in skymap file from: themis_skymap_pina_20170930-+_vXX.sav
+2022-09-27 18:23:02 INFO     Processing and writing images to file...
+2022-09-27 18:24:04 INFO     Finished h5 file creation script for pina and 2018-03-10. File is saved to: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/all-images-2018-03-10-pina.h5
+2022-09-27 18:24:04 INFO     Starting timestamped movie script for pina and 2018-03-10.
+2022-09-27 18:24:04 INFO     Reading in h5 file: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/all-images-2018-03-10-pina.h5
+2022-09-27 18:24:06 INFO     Starting 1 movie creating processes. Tmp movies will be combined into one at the end.
+2022-09-27 18:32:02 INFO     Finished creating tmp movies.
+2022-09-27 18:32:02 INFO     Combining tmp movies into one file at: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/movies/full-movie-2018-03-10-pina.mp4.
+2022-09-27 18:34:54 INFO     Full movie file created. Deleting tmp files.
+2022-09-27 18:34:54 INFO     Finished timestamped movie script for pina and 2018-03-10.
+2022-09-27 18:56:12 INFO     test code start
+2022-09-27 18:56:12 INFO     Starting h5 file creation script for pina and 2018-03-10...
+2022-09-27 18:56:12 INFO     Read in skymap file from: themis_skymap_pina_20170930-+_vXX.sav
+2022-09-27 18:56:12 INFO     Processing and writing images to file...
+2022-09-27 19:02:15 INFO     test code start
+2022-09-27 19:02:15 INFO     Starting h5 file creation script for pina and 2018-03-10...
+2022-09-27 19:02:15 INFO     Read in skymap file from: themis_skymap_pina_20170930-+_vXX.sav
+2022-09-27 19:02:15 INFO     Processing and writing images to file...
+2022-09-27 19:03:28 INFO     Finished h5 file creation script for pina and 2018-03-10. File is saved to: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/all-images-2018-03-10-pina.h5
+2022-09-27 19:03:28 INFO     Starting timestamped movie script for pina and 2018-03-10.
+2022-09-27 19:03:28 INFO     Reading in h5 file: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/all-images-2018-03-10-pina.h5
+2022-09-27 19:03:31 INFO     Starting 8 movie creating processes. Tmp movies will be combined into one at the end.
+2022-09-27 19:07:37 INFO     Finished creating tmp movies.
+2022-09-27 19:07:37 INFO     Combining tmp movies into one file at: /Volumes/Garrys_T7/rtroyer-useful-functions/image/pina/movies/full-movie-2018-03-10-pina.mp4.
+2022-09-27 19:09:22 INFO     Full movie file created. Deleting tmp files.
+2022-09-27 19:09:22 INFO     Finished timestamped movie script for pina and 2018-03-10.

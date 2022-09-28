@@ -144,7 +144,7 @@ def download_themis_images(date, asi, save_dir = '../../../asi-data/themis/'):
     logging.info('Finished download script for {} and {}.'.format(asi, date.date()))
 
 def themis_asi_to_hdf5(date, asi, del_files = False,
-                       save_dir = ('../../../asi-data/themis/')):
+                       save_dir = ('../../../asi-data/themis/'), workers=2):
     """Function to convert themis asi images
     to 8-bit grayscale images and then write them to an h5 file.
     INPUT
@@ -168,8 +168,26 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
                     format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
-    """     
+    """
+     
     def bytescale(data, cmin=None, cmax=None, high=65535, low=0):
+        """Function for process_img(). convert data to another scale in linear fashion
+        INPUT
+        data : ndarray
+            PIL image data array.
+        cmin : scalar, optional
+            Bias scaling of small values. Default is data.min().
+        cmax : scalar, optional
+            Bias scaling of large values. Default is data.max().
+        high : scalar, optional
+            Scale max value to high. Default is 65535.
+        low : scalar, optional
+            Scale min value to low. Default is 0.
+        OUTPUT
+        img_array : ndarray
+            The byte-scaled array.
+        """
+
         if high > 65535:
             raise ValueError("`high` should be less than or equal to 65535.")
         if low < 0:
@@ -191,47 +209,80 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
         scale = float(high - low) / cscale
         bytedata = (data - cmin) * scale + low
         return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
+    
+    def relu(data, cmin=None, cmax=None, high=65535, low=0,pivot=0.03, ratio=1.3):
+        # find the scale of current image
+        if cmin is None:
+            cmin = data.min()
+        if cmax is None:
+            cmax = data.max()
+        cscale = cmax - cmin
+        if cscale < 0:
+            raise ValueError("`cmax` should be larger than `cmin`.")
+        elif cscale == 0:
+            cscale = 1
+        
+        # the ratio between new scale and current scale
+        scale = float(high - low) / cscale
 
-    def process_img(img):
-        im_scaled = bytescale(img[:, :, :], cmin=3000, cmax=14000)
-        img = (im_scaled // 256).astype(numpy.uint8)
+        # process the data in relu
+        def _relu(data, pivot=pivot, low=low, ratio=ratio):
+            return numpy.maximum(pivot*cscale+low, ratio*data)
+        data = _relu(data)
+
+        # convert data in the new scale and clip
+        bytedata = (data - cmin) * scale + low
+        return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
+
+
+    def process_img(img, method = 'relu'):
+
+        """Function to process THEMIS ASI image. Plots in log scale and output
+        to 8-bit
+        INPUT
+        img
+            type: array
+            about: image data in array
+        method
+            type: string ('bytescale', 'log', 'relu')
+            about: the way to process img. 
+        OUTPUT
+        img
+            type: array
+            about: 8-bit processed image
+        """
+
+        if method == 'bytescale':
+            im_scaled = bytescale(img[:, :, :], cmin=3000, cmax=14000)
+            img = (im_scaled // 256)
+
+        elif method == 'relu':
+            im_scaled = relu(img[:, :, :], cmin=3000, cmax=14000, pivot=0.06, ratio=2)
+            img = (im_scaled // 256)
+        
+        elif method == 'log':
+            # Make smallest pixel value zero
+            try: 
+                img = abs(img - numpy.min(img))
+            except ValueError: 
+                pass
+
+            # Set a maximum pixel value
+            max_pixel_val = 2**16
+
+            # Set anything larger to this value
+            img[img>max_pixel_val] = max_pixel_val
+            
+            # Scale image
+            img = (255/numpy.sqrt(1 + max_pixel_val)) * numpy.sqrt(1 + img)
+
+            # Clip to 0 to 255
+            img[img>255] = 255
+
+        # Convert to uint8
+        img = img.astype('uint8')
 
         return img
-
-        # """Function to process THEMIS ASI image. Plots in log scale and output
-        # to 8-bit
-        # INPUT
-        # img
-        #     type: array
-        #     about: image data in array
-        # OUTPUT
-        # img
-        #     type: array
-        #     about: 8-bit processed image
-        # """
-
-        # # Make smallest pixel value zero
-        # try: 
-        #     img = abs(img - numpy.min(img))
-        # except ValueError: 
-        #     pass
-
-        # # Set a maximum pixel value
-        # max_pixel_val = 2**16
-
-        # # Set anything larger to this value
-        # img[img>max_pixel_val] = max_pixel_val
-        
-        # # Scale image
-        # img = (255/numpy.sqrt(1 + max_pixel_val)) * numpy.sqrt(1 + img)
-
-        # # Clip to 0 to 255
-        # img[img>255] = 255
-
-        # # Convert to uint8
-        # img = img.astype('uint8')
-
-        # return img
 
     def read_img(filename):
 
@@ -348,7 +399,7 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
 
                 # Read the data files
                 img, meta, problematic_files = themis_imager_readfile.read(hour_filepathnames,
-                                                                           workers=2)
+                                                                           workers=workers)
 
                 # Extract datetimes from file
                 datetimes = [datetime.strptime(m['Image request start'],

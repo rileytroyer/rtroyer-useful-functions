@@ -30,13 +30,13 @@ if __name__ == '__main__':
     # download_themis_images(mydate, asi1, save_dir=crtdir)
     # print("download image ended")
 
-    # # convert downloaded to hdf5 # skymap? - fixed
-    # print("h5 convertion started")
-    # themis_asi_to_hdf5(mydate, asi1, del_files=False, save_dir = crtdir)
-    # print("h5 convertion ended")
+    # convert downloaded to hdf5 # skymap? - fixed
+    print("h5 convertion started")
+    themis_asi_to_hdf5(mydate, asi1, del_files=False, save_dir = crtdir, workers=8)
+    print("h5 convertion ended")
 
     # creat timestamped movie
     print("timestamped movie generating")
-    create_timestamped_movie(mydate, asi1, save_dir=crtdir)
+    create_timestamped_movie(mydate, asi1, save_dir=crtdir, workers=8)
     print("timestamped movie generated")
 

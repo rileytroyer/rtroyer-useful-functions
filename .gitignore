@@ -5,3 +5,4 @@ __pycache__/
 image/
 *.pyc
 skymap/
+themis-script.log
