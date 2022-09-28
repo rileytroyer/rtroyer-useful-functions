@@ -1,0 +1,8 @@
+__pycache__/
+*.whl
+.*.py
+*.tar.gz
+image/
+*.pyc
+skymap/
+themis-script.log

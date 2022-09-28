@@ -16,6 +16,7 @@ import math
 from matplotlib import animation
 from matplotlib import pyplot
 from moviepy.editor import *
+import multiprocessing
 from multiprocessing import Pool
 import numpy
 import os
@@ -97,12 +98,12 @@ def download_themis_images(date, asi, save_dir = '../../../asi-data/themis/'):
     # Does directory exist for imager?
     save_asi_dir = save_dir + asi + '/'
     if not os.path.exists(save_asi_dir):
-        os.mkdir(save_asi_dir)
+        os.makedirs(save_asi_dir)
 
     # Does a temporary directory for raw images and skymap files exist?
     tmp_dir = save_asi_dir + 'tmp/'
     if not os.path.exists(tmp_dir):
-        os.mkdir(tmp_dir)
+        os.makedirs(tmp_dir)
 
     tmp_img_dir = tmp_dir + str(date.date()) + '/'
     if not os.path.exists(tmp_img_dir):
@@ -142,8 +143,13 @@ def download_themis_images(date, asi, save_dir = '../../../asi-data/themis/'):
             
     logging.info('Finished download script for {} and {}.'.format(asi, date.date()))
 
+<<<<<<< HEAD
 def themis_asi_to_hdf5(date, asi, del_files = False, workers = 1,
                        save_dir = ('../../../asi-data/themis/')):
+=======
+def themis_asi_to_hdf5(date, asi, del_files = False,
+                       save_dir = ('../../../asi-data/themis/'), workers=2):
+>>>>>>> 9525a6b509786f5e3e0241a7c44676e4421cb0a2
     """Function to convert themis asi images
     to 8-bit grayscale images and then write them to an h5 file.
     INPUT
@@ -170,9 +176,74 @@ def themis_asi_to_hdf5(date, asi, del_files = False, workers = 1,
                     format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
-    """     
+    """
+     
+    def bytescale(data, cmin=None, cmax=None, high=65535, low=0):
+        """Function for process_img(). convert data to another scale in linear fashion
+        INPUT
+        data : ndarray
+            PIL image data array.
+        cmin : scalar, optional
+            Bias scaling of small values. Default is data.min().
+        cmax : scalar, optional
+            Bias scaling of large values. Default is data.max().
+        high : scalar, optional
+            Scale max value to high. Default is 65535.
+        low : scalar, optional
+            Scale min value to low. Default is 0.
+        OUTPUT
+        img_array : ndarray
+            The byte-scaled array.
+        """
+
+        if high > 65535:
+            raise ValueError("`high` should be less than or equal to 65535.")
+        if low < 0:
+            raise ValueError("`low` should be greater than or equal to 0.")
+        if high < low:
+            raise ValueError("`high` should be greater than or equal to `low`.")
+
+        if cmin is None:
+            cmin = data.min()
+        if cmax is None:
+            cmax = data.max()
+
+        cscale = cmax - cmin
+        if cscale < 0:
+            raise ValueError("`cmax` should be larger than `cmin`.")
+        elif cscale == 0:
+            cscale = 1
+
+        scale = float(high - low) / cscale
+        bytedata = (data - cmin) * scale + low
+        return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
     
-    def process_img(img):
+    def relu(data, cmin=None, cmax=None, high=65535, low=0,pivot=0.03, ratio=1.3):
+        # find the scale of current image
+        if cmin is None:
+            cmin = data.min()
+        if cmax is None:
+            cmax = data.max()
+        cscale = cmax - cmin
+        if cscale < 0:
+            raise ValueError("`cmax` should be larger than `cmin`.")
+        elif cscale == 0:
+            cscale = 1
+        
+        # the ratio between new scale and current scale
+        scale = float(high - low) / cscale
+
+        # process the data in relu
+        def _relu(data, pivot=pivot, low=low, ratio=ratio):
+            return numpy.maximum(pivot*cscale+low, ratio*data)
+        data = _relu(data)
+
+        # convert data in the new scale and clip
+        bytedata = (data - cmin) * scale + low
+        return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
+
+
+    def process_img(img, method = 'relu'):
 
         """Function to process THEMIS ASI image. Plots in log scale and output
         to 8-bit
@@ -180,30 +251,52 @@ def themis_asi_to_hdf5(date, asi, del_files = False, workers = 1,
         img
             type: array
             about: image data in array
+        method
+            type: string ('bytescale', 'log', 'relu')
+            about: the way to process img. 
         OUTPUT
         img
             type: array
             about: 8-bit processed image
         """
 
-        # Make smallest pixel value zero
-        img = abs(img - numpy.min(img))
+        if method == 'bytescale':
+            im_scaled = bytescale(img[:, :, :], cmin=3000, cmax=14000)
+            img = (im_scaled // 256)
 
+<<<<<<< HEAD
         # Set a maximum pixel value
         max_pixel_val = (2**16)/10
 
         # Set anything larger to this value
         img[img>max_pixel_val] = max_pixel_val
+=======
+        elif method == 'relu':
+            im_scaled = relu(img[:, :, :], cmin=3000, cmax=14000, pivot=0.06, ratio=2)
+            img = (im_scaled // 256)
+>>>>>>> 9525a6b509786f5e3e0241a7c44676e4421cb0a2
         
-        # Scale image
-        img = (255/numpy.sqrt(1 + max_pixel_val)) * numpy.sqrt(1 + img)
+        elif method == 'log':
+            # Make smallest pixel value zero
+            try: 
+                img = abs(img - numpy.min(img))
+            except ValueError: 
+                pass
 
-        # Clip to 0 to 255
-        img[img>255] = 255
+            # Set a maximum pixel value
+            max_pixel_val = 2**16
+
+            # Set anything larger to this value
+            img[img>max_pixel_val] = max_pixel_val
+            
+            # Scale image
+            img = (255/numpy.sqrt(1 + max_pixel_val)) * numpy.sqrt(1 + img)
+
+            # Clip to 0 to 255
+            img[img>255] = 255
 
         # Convert to uint8
         img = img.astype('uint8')
-
 
         return img
 
@@ -318,6 +411,7 @@ def themis_asi_to_hdf5(date, asi, del_files = False, workers = 1,
 
         try:
             for hour_filepathnames in filepathnames:
+                # logging.info('file name is {}'.format(hour_filepathnames))
 
                 # Read the data files
                 img, meta, problematic_files = themis_imager_readfile.read(hour_filepathnames,
@@ -331,9 +425,11 @@ def themis_asi_to_hdf5(date, asi, del_files = False, workers = 1,
                 timestamps = numpy.array([int(t.timestamp()) for t in datetimes])
 
                 # Process the image
+                # logging.info("img shape before " + str(img.shape))
                 img = process_img(img)
 
                 # Write image to dataset. This requires resizing
+                # logging.info("img shape {}".format(img.shape))
                 img_ds.resize(img_ds.shape[2] + img.shape[2], axis=2)
                 img_ds[:, :, -img.shape[2]:] = img
 
@@ -640,8 +736,10 @@ def create_timestamped_movie(date, asi, workers=1,
                  ' Tmp movies will be combined into one at the end.'.format(workers))
 
     try:
-        pool = Pool(processes=workers)
-        pool.map(movie_job, job_input)
+        with multiprocessing.get_context("forkserver").Pool(processes=workers) as pool:
+            pool.map(movie_job, job_input)
+        # pool = Pool(processes=workers)
+        # pool.map(movie_job, job_input)
 
         # Terminate threads when finished
         pool.terminate()
