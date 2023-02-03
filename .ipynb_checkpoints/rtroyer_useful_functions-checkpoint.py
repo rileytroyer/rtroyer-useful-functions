@@ -284,7 +284,7 @@ def get_isr_data(pfisr_filename, pfisr_data_dir):
 
     # Fade from 1 to 0 over 90 to 120km
     fade_selector = (pfisr_altitude > low_fade) & (pfisr_altitude < high_fade)
-    fade_len = len(correction_fade_selector[correction_fade_selector == True])
+    fade_len = len(fade_selector[fade_selector == True])
     fade = np.linspace(1, 0, fade_len)
 
     # Set correct fade values
