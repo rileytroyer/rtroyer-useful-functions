@@ -26,6 +26,7 @@ import shutil
 import smtplib
 import ssl
 import wget
+import cv2
 
 
 def get_pfrr_asi_filenames(date):
@@ -124,7 +125,7 @@ def job(job_input):
 
 def download_pfrr_images(date,
                          base_url = 
-                         'ftp://optics.gi.alaska.edu/PKR/DASC/RAW/',
+                         'ftp://optics.gi.alaska.edu/amisr-archive/PKR/DASC/RAW/',
                          wavelength = '428',
                          save_dir = ('../data/pfrr-asi-data/pfrr-images/'
                                      'individual-images/')):
@@ -288,6 +289,22 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
 
         return img
     
+    def process_img_clahe(img, time):
+        # First rotate the image as needed
+        if time.year < 2018:
+            angle = -90
+        else:
+            angle = 0
+
+        img = ndimage.rotate(img, angle=angle, reshape=False,
+                             mode='constant', cval=np.nanmin(img),
+                             axes=(2, 1))
+        
+        clahe = cv2.createCLAHE(clipLimit=30)
+        img = clahe.apply(img)
+
+        return img
+    
     output = []
     
     # Combine rgb images to create white wavelength
@@ -405,7 +422,7 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
                                   n_img*img_chunk + img_chunk])
 
             # Process the image
-            img = process_img(img, dt.fromtimestamp(timestamps[0]))
+            img = process_img_clahe(img, dt.fromtimestamp(timestamps[0]))
 
             # Write image to dataset
             img_ds[n_img*img_chunk:
@@ -414,6 +431,7 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
             # Update how far along code is
             if update_progress == True:
            #     rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
+                continue
             
         # If specified to delete files, remove individual images
         if del_files == True:
@@ -601,6 +619,7 @@ def pfrr_asi_to_hdf5_16bit(date, wavelength='white', del_files = True,
             # Update how far along code is
             if update_progress == True:
             #    rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
+                continue
             
         # If specified to delete files, remove individual images
         if del_files == True:
