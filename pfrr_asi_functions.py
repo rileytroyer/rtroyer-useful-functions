@@ -20,7 +20,7 @@ from matplotlib import pyplot as plt
 from multiprocessing import Pool
 import numpy as np
 import os
-import rtroyer_useful_functions as rt_func
+#import rtroyer_useful_functions as rt_func
 from scipy import ndimage
 import shutil
 import smtplib
@@ -413,7 +413,7 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
 
             # Update how far along code is
             if update_progress == True:
-                rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
+           #     rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
             
         # If specified to delete files, remove individual images
         if del_files == True:
@@ -600,7 +600,7 @@ def pfrr_asi_to_hdf5_16bit(date, wavelength='white', del_files = True,
 
             # Update how far along code is
             if update_progress == True:
-                rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
+            #    rt_func.update_progress((n_img+1)/int(darray.shape[0]/img_chunk))
             
         # If specified to delete files, remove individual images
         if del_files == True:
