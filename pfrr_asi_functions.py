@@ -13,14 +13,14 @@ from dask.array.image import imread as dask_imread
 import ftplib
 import gc
 import h5py
+import logging
 from matplotlib import animation
 from matplotlib import colors as mcolors
 from matplotlib import dates as mdates
 from matplotlib import pyplot as plt
-from multiprocessing import Pool
+import multiprocessing
 import numpy as np
 import os
-#import rtroyer_useful_functions as rt_func
 from scipy import ndimage
 import shutil
 import smtplib
@@ -28,6 +28,7 @@ import ssl
 import wget
 import cv2
 
+output=[]
 
 def get_pfrr_asi_filenames(date):
 
@@ -63,15 +64,14 @@ def get_pfrr_asi_filenames(date):
                      + f for f in ftp.nlst()]
 
     except Exception as e:
-        print(e)
+        logging.warning(f'Could not get image filepaths. Stopped with error {e}')
         result = None
         counter = 0
         while result is None:
 
             # Break out of loop after 10 iterations
             if counter > 10:
-                print('Unable to get data from: ftp://' + ftp_link 
-                      + rel_imager_dir)
+                logging.error(f'Unable to get data from: ftp://{ftp_link}{rel_imager_dir}, skipping.')
                 break
 
             try:
@@ -91,7 +91,7 @@ def get_pfrr_asi_filenames(date):
             
     return filenames
 
-def job(job_input):
+def download_job(job_input):
     """Function to pass to thread process to download file
     INPUT
     job_input
@@ -112,6 +112,7 @@ def job(job_input):
     while result is None:
         # Break out of loop after 10 iterations
         if counter > 10:
+            logging.error(f'Unable to download image from: {file_url}, skipping.')
             break
         try:
             wget.download(file_url, day_dir 
@@ -123,12 +124,7 @@ def job(job_input):
         counter = counter + 1
 
 
-def download_pfrr_images(date,
-                         base_url = 
-                         'ftp://optics.gi.alaska.edu/amisr-archive/PKR/DASC/RAW/',
-                         wavelength = '428',
-                         save_dir = ('../data/pfrr-asi-data/pfrr-images/'
-                                     'individual-images/')):
+def download_pfrr_images(date, save_dir, wavelength = '558', processes=25):
     """Function to download image files from the
     Poker Flat Research Range (PFRR) all-sky imager images.
     DEPENDENCIES
@@ -137,19 +133,21 @@ def download_pfrr_images(date,
     date
         type: datetime
         about: day to download files for
-    base_url
-        type: url string
-        about: base url for ftp images
+    save_dir
+        type: str. example: '../data/pfrr-asi-data/pfrr-images/individual-images/'
+        about: where to save the images, program will create
+               separate directories for each day within this.
     wavelength = '428'
         type: str
         about: which wavelength images are being used
-    save_dir = '../data/pfrr-asi-data/pfrr-images/individual-images/'
-        type: str
-        about: where to save the images, program will create
-               separate directories for each day within this.
+    processes=25
+        type: int
+        about: how many multiprocessing process to download images with
     OUTPUT
     none
     """
+
+    logging.info(f'Starting to download files for {date} and {wavelength}.')
 
     # Select files for day and wavelength
     file_urls = get_pfrr_asi_filenames(date)
@@ -161,11 +159,12 @@ def download_pfrr_images(date,
 
     # Create a directory to store files
     day_dir = (save_dir + str(date) + '-' + wavelength + '/')
+    logging.info(f'Downloading images to {day_dir}.')
     if not os.path.exists(day_dir):
-        os.mkdir(day_dir)
+        os.makedirs(day_dir)
 
     # Create a string to input into job, include url and dir
-    job_input = [day_dir + '###' + f for f in file_urls]
+    download_job_input = [day_dir + '###' + f for f in file_urls]
     
     # Keep trying to download if all files aren't downloaded
     finished = False
@@ -173,13 +172,9 @@ def download_pfrr_images(date,
         
         # Use download function in threads to download all files
         #...not sure how many processes are possible, but 25 
-        #...seems to work, 50 does not.
-        pool = Pool(processes=25)
-        pool.map(job, job_input)
-        
-        # Terminate threads when finished
-        pool.terminate()
-        pool.join()
+        #...seems to work, 50 does not on my computer.
+        with multiprocessing.Pool(processes=processes) as pool:
+            pool.map(download_job, download_job_input)
 
         # As a last step check to make sure all files were downloaded
         finished_check = []
@@ -188,6 +183,137 @@ def download_pfrr_images(date,
                                                  + file_url[54:]))
         if False not in finished_check:
             finished = True
+
+    logging.info('Finished downloading images.')
+
+def read_process_img_clahe(filename):
+    """Function to use astropy.io.fits to read in fits file,
+    process it with a CLAHE method and 
+    output a numpy array. Note for CLAHE input array needs to be unsigned int
+    INPUT
+    filename
+        type: string
+        about: fits file to be read in
+    OUTPUT
+    image
+        type: numpy array
+        about: processed image data array
+    """
+
+    # Read in the image
+    fits_file = fits.open(filename)
+    image = fits_file[0].data.astype('uint16')
+    fits_file.close()
+
+    # Image processing
+    #clahe = cv2.createCLAHE(clipLimit=10)
+    #image = clahe.apply(image)
+
+    return image
+
+def pfrr_asi_to_hdf5_8bit_clahe(date, save_base_dir, img_base_dir,
+                                wavelength='558',
+                                del_files = False, processes=25):
+    """Function to convert 428, 558, 630 nm PFRR images for an entire
+    night to an 8-bit grayscale image and then write them to an h5 file.
+    INPUT
+    date
+        type: datetime
+        about: date to perform image conversion and storage for
+    save_base_dir
+        type: string. example: '../data/pfrr-asi-data/pfrr-images/'
+        about: base directory to save the images to
+    img_base_dir
+        type: string. example: '../data/pfrr-asi-data/pfrr-images/individual-images'
+        about: base directory where the individual images are stored
+    wavelength='white'
+        type: string
+        about: which wavelength to use. White combines all three.
+               Options: 428, 558, 630
+    del_files = True
+        type: bool
+        about: whether to delete the individual files after program runs
+    update_progress = True
+        type: bool
+        about: whether to update progress of creating the h5 file.
+    OUTPUT
+    none
+    """
+    
+    # Get directory where images are stored
+    dir_wavelength = img_base_dir + str(date) + '-' + wavelength + '/'
+    
+    # Get a list of files
+    files_wavelength = sorted(os.listdir(dir_wavelength))
+    # Make sure these are only .fits files
+    files_wavelength = [f for f in files_wavelength if f.endswith('.FITS')]
+    
+    # Extract times from filenames
+    times_wavelength = np.array([dt(int(f[14:18]), int(f[18:20]), int(f[20:22]),
+                            int(f[23:25]), int(f[25:27]), int(f[27:29]))
+                            for f in files_wavelength])
+
+    # Get the full filepath
+    files_wavelength = [dir_wavelength + f for f in files_wavelength]
+    
+    # Convert datetime to integer timestamp
+    timestamps = np.array([int(t.timestamp()) for t in times_wavelength])
+    # And ISO string
+    iso_time = np.array([t.isoformat() for t in times_wavelength]).astype('S26')
+    
+    # Write images to h5 dataset
+    h5file = save_base_dir + 'all-images-' + str(date) + '-' + wavelength + '.h5'
+
+    # Read in a sample image to get correct size for dataset
+    sample_image = read_process_img_clahe(files_wavelength[0])
+    image_data_shape = (len(files_wavelength), sample_image.shape[0], sample_image.shape[1])
+
+    with h5py.File(h5file, 'w') as h5f:
+
+        # Initialize the datasets for images and timestamps
+        img_ds = h5f.create_dataset('images', shape=image_data_shape,
+                                    dtype='uint8')
+
+        time_ds = h5f.create_dataset('timestamps', shape=timestamps.shape,
+                                     dtype='uint64', data=timestamps)
+        iso_time_ds = h5f.create_dataset('iso_time_string', shape=iso_time.shape,
+                                         dtype='S26', data=iso_time)
+
+        # Add attributes to datasets
+        time_ds.attrs['about'] = ('UT POSIX Timestamp.'
+                                  'Use datetime.fromtimestamp '
+                                  'to convert.')
+        iso_time_ds.attrs['about'] = ('ISO string format for UT time.')
+        img_ds.attrs['wavelength'] = wavelength
+
+        logging.info(f'Initialized h5 file: {h5file}. Starting to write data.')
+
+        # Loop through 100 images at a time
+        chunk_size = 100
+
+        for n_chunk, files in enumerate(files_wavelength[0::chunk_size]):
+
+            files = files_wavelength[n_chunk*chunk_size : n_chunk*chunk_size+chunk_size]
+            
+            # Read and process files using multiprocessing
+            with multiprocessing.Pool(processes=processes) as pool:
+                processed_images = pool.map(read_process_img_clahe, files)
+
+            # Stack the images into a numpy array
+            processed_images_array = np.stack(processed_images, axis=0)
+
+            # Write image to dataset
+            img_ds[n_chunk*chunk_size:
+                   n_chunk*chunk_size+chunk_size:, :, :] = processed_images_array
+
+            logging.info(f'Finished writing {n_chunk*chunk_size} of {len(files_wavelength)} images.')
+            
+        # If specified to delete files, remove individual images
+        if del_files == True:
+            shutil.rmtree(dir_wavelength)
+    
+    logging.info(f'Finished writing data to h5 file.')
+
 
 def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
                      update_progress = True,
@@ -301,11 +427,11 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
                              axes=(2, 1))
         
         clahe = cv2.createCLAHE(clipLimit=30)
-        img = clahe.apply(img)
+        img_processed = np.zeros(img.shape)
+        for n in range(img.shape[0]):
+            img_processed[n, :, :] = clahe.apply(img[n, :, :])
 
-        return img
-    
-    output = []
+        return img_processed
     
     # Combine rgb images to create white wavelength
     if wavelength == 'white':
@@ -422,7 +548,7 @@ def pfrr_asi_to_hdf5(date, wavelength='white', del_files = True,
                                   n_img*img_chunk + img_chunk])
 
             # Process the image
-            img = process_img_clahe(img, dt.fromtimestamp(timestamps[0]))
+            img = process_img_clahe(img.astype(np.uint16), dt.fromtimestamp(timestamps[0]))
 
             # Write image to dataset
             img_ds[n_img*img_chunk:
@@ -742,11 +868,7 @@ def create_pfrr_keogram(date, wavelength = '428',
         #...clear memory
         gc.collect() 
 
-def create_timestamped_movie(date, wavelength='428',
-                             img_base_dir = ('../data/pfrr-asi-data/'
-                                             'pfrr-images/'),
-                             save_base_dir = ('../data/pfrr-asi-data/'
-                                              'pfrr-images/movies/')):
+def create_timestamped_movie(date,img_base_dir, save_base_dir, wavelength='558'):
     
     """Function to create a movie from PFRR ASI files with a timestamp and frame number.
     Includes a timestamp, and frame number. 
@@ -757,16 +879,15 @@ def create_timestamped_movie(date, wavelength='428',
     date
         type: datetime
         about: day to create movie for
+    save_base_dir
+        type: string. example: '../figures/themis-figures/'
+        about: base directory to store keogram image
+    img_base_dir
+        type: string. example: '../data/themis-asi-data/themis-images/'
+        about: base directory to where themis asi images are stored.
     wavelength = '428'
         type: str
         about: which wavelength images are being used
-    save_base_dir = ('../figures/themis-figures/')
-        type: string
-        about: base directory to store keogram image
-    img_base_dir = ('../data/themis-asi-data/'
-                                           'themis-images/')
-        type: string
-        about: base directory to where themis asi images are stored.
     OUTPUT
     none
     """
