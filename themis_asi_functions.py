@@ -6,6 +6,7 @@ Created on Thu Feb 13 16:08:25 2020
 @author: rntroyer
 """
 
+import cv2
 from datetime import datetime
 import gc
 import dask
@@ -285,29 +286,7 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
         # Convert to uint8
         img = img.astype('uint8')
 
-        return img
-
-    def read_img(filename):
-
-        """Function to read in THEMIS stream0 image file and 
-        output a numpy array
-        INPUT
-        filename
-            type: string
-            about: img file to be read in
-        OUTPUT
-        img
-            type: numpy array
-            about: image data array
-        """
-
-        # Read in img file
-        img_file = themis_imager_readfile.read(filename)
-
-        # Get images
-        img = img_file[0]
-
-        return img    
+        return img  
     
     # Write images to h5 dataset
     logging.info('Starting h5 file creation script for {} and {}...'.format(asi,
@@ -419,6 +398,199 @@ def themis_asi_to_hdf5(date, asi, del_files = False,
                 # logging.info("img shape {}".format(img.shape))
                 img_ds.resize(img_ds.shape[2] + img.shape[2], axis=2)
                 img_ds[:, :, -img.shape[2]:] = img
+
+                # Write timestamp to dataset
+                time_ds.resize(time_ds.shape[0] + timestamps.shape[0], axis=0)
+                time_ds[-timestamps.shape[0]:] = timestamps
+
+        except Exception as e:
+            logging.critical('Unable to write images to file. Stopping.'
+                             ' Deleting h5 file and, if specified, images.')
+            logging.critical('Exception: {}'.format(e))
+            
+            # Delete h5 file
+            os.remove(h5file)
+            
+            # Delete the raw image files if specified
+            if del_files == True:
+                logging.info('Deleting directory: {}'.format(tmp_img_dir))
+                shutil.rmtree(tmp_img_dir)
+            raise
+
+        # Add attributes to datasets
+        time_ds.attrs['about'] = ('UT POSIX Timestamp.'
+                                  ' Use datetime.fromtimestamp '
+                                  'to convert. Time is start of image.'
+                                  ' 1 second exposure.')
+        img_ds.attrs['wavelength'] = 'white'
+        img_ds.attrs['station_latitude'] = float(meta[0]['Geodetic latitude'])
+        img_ds.attrs['station_longitude'] = float(meta[0]['Geodetic Longitude'])
+        alt_ds.attrs['about'] = 'Altitudes for different skymaps.'
+        glat_ds.attrs['about'] = 'Geographic latitude at pixel corner, excluding last.'
+        glon_ds.attrs['about'] = 'Geographic longitude at pixel corner, excluding last.'
+        elev_ds.attrs['about'] = 'Elevation angle of pixel center.'
+        azim_ds.attrs['about'] = 'Azimuthal angle of pixel center.'
+        
+    # Delete the raw image files if specified
+    if del_files == True:
+        logging.info('Deleting directory: {}'.format(tmp_img_dir))
+        shutil.rmtree(tmp_img_dir)
+
+    logging.info('Finished h5 file creation script for {} and {}.'
+                 ' File is saved to: {}'.format(asi, date.date(), h5file))
+
+
+def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
+                                  save_dir = ('../../../asi-data/themis/'), workers=2):
+    """Function to convert themis asi images
+    to 8-bit grayscale images and then write them to an h5 file.
+    INPUT
+    date
+        type: datetime
+        about: date to perform image conversion and storage for
+    asi
+        type: string
+        about: which THEMIS camera to use
+    del_files = False
+        type: bool
+        about: whether to delete the individual files after program runs
+    workers = 1
+        type: int
+        about: how many multiprocessing workers to use when reading in raw themis files
+    save_dir = ('../../../asi-data/themis/')
+        type: string
+        about: base directory to save the images to
+    OUTPUT
+    logging. I recommend writing to file by running this at the start of the code:
+    
+    logging.basicConfig(filename='themis-script.log',
+                    encoding='utf-8',
+                    format='%(asctime)s %(levelname)-8s %(message)s',
+                    level=logging.INFO,
+                    datefmt='%Y-%m-%d %H:%M:%S')
+    """
+
+    def process_image(image):
+
+        # process the image using clahe
+        clahe = cv2.createCLAHE(clipLimit=3, tileGridSize=(8, 8))
+ 
+        return cv2.convertScaleAbs(clahe.apply(image), alpha=(255.0/65535.0))
+    
+    # Write images to h5 dataset
+    logging.info('Starting h5 file creation script for {} and {}...'.format(asi,
+                                                                            date.date()))
+
+    h5file = save_dir + asi + '/all-images-' + str(date.date()) + '-' + asi + '.h5'
+    
+    # Directory with images
+    tmp_img_dir = save_dir + asi + '/tmp/' + str(date.date()) + '/'
+    
+    if not os.path.exists(tmp_img_dir):
+        logging.critical('Images are not downloaded. Try running download_themis_images.')
+    
+    # Read in skymap
+    skymap_file = [f for f in os.listdir(tmp_img_dir) if f.endswith('.sav')][0]
+
+    try:
+        # Try reading IDL save file
+        skymap = readsav(tmp_img_dir + skymap_file, python_dict=True)['skymap']
+
+        # Get arrays
+        skymap_alt = skymap['FULL_MAP_ALTITUDE'][0]
+        skymap_glat = skymap['FULL_MAP_LATITUDE'][0][:, 0:-1, 0:-1]
+        skymap_glon = skymap['FULL_MAP_LONGITUDE'][0][:, 0:-1, 0:-1]
+        skymap_elev = skymap['FULL_ELEVATION'][0]
+        skymap_azim = skymap['FULL_AZIMUTH'][0]
+        
+        logging.info('Read in skymap file from: {}'.format(skymap_file))
+        
+    except Exception as e:
+        logging.error('Unable to read skymap file: {}.'
+                         ' Creating file without it.'.format(tmp_img_dir + skymap_file))
+        logging.error('Exception: {}'.format(e))
+        
+        skymap_alt = numpy.array(['Unavailable'])
+        skymap_glat = numpy.array(['Unavailable'])
+        skymap_glon = numpy.array(['Unavailable'])
+        skymap_elev = numpy.array(['Unavailable'])
+        skymap_azim = numpy.array(['Unavailable'])
+
+    # Does the downloaded image directory exists?
+    if not os.path.exists(tmp_img_dir):
+        logging.critical('Images do not exist at {}'.format(tmp_img_dir))
+
+    hour_dirs = os.listdir(tmp_img_dir)
+    hour_dirs = sorted([d for d in hour_dirs if d.startswith('ut')])
+
+    # Construct a list of pathnames to each file for day
+    filepathnames = []
+
+    for hour_dir in hour_dirs:
+
+        # Name of all images in hour
+        img_files = sorted(os.listdir(tmp_img_dir + hour_dir))
+        img_files = [tmp_img_dir + hour_dir + '/' + f for f in img_files]
+
+        # Add to master list
+        filepathnames.append(img_files)
+
+    with h5py.File(h5file, 'w') as h5f:
+
+        # Initialize the datasets for images and timestamps
+        img_ds = h5f.create_dataset('images', shape=(256, 256, 0),
+                                    maxshape=(256, 256, None),
+                                    dtype='uint8')
+
+        time_ds = h5f.create_dataset('timestamps', shape=(0,),
+                                     maxshape=(None,),
+                                     dtype='uint64')
+
+        alt_ds = h5f.create_dataset('skymap_alt', shape=skymap_alt.shape,
+                                     dtype='float', data=skymap_alt)        
+        
+        glat_ds = h5f.create_dataset('skymap_glat', shape=skymap_glat.shape,
+                                     dtype='float', data=skymap_glat)
+
+        glon_ds = h5f.create_dataset('skymap_glon', shape=skymap_glon.shape,
+                                     dtype='float', data=skymap_glon)
+
+        elev_ds = h5f.create_dataset('skymap_elev', shape=skymap_elev.shape,
+                                     dtype='float', data=skymap_elev)
+
+        azim_ds = h5f.create_dataset('skymap_azim', shape=skymap_azim.shape,
+                                     dtype='float', data=skymap_azim)
+
+        # Loop through each hour, process and write images to file
+        logging.info('Processing and writing images to file...')
+
+        # Create dictionary to store images in
+        camera_dict = {}
+
+        try:
+            for hour_filepathnames in filepathnames:
+                # logging.info('file name is {}'.format(hour_filepathnames))
+
+                # Read the data files
+                images, meta, problematic_files = themis_imager_readfile.read(hour_filepathnames,
+                                                                              workers=workers)
+
+                # Extract datetimes from file
+                datetimes = [datetime.strptime(m['Image request start'],
+                                                 '%Y-%m-%d %H:%M:%S.%f %Z') for m in meta]
+
+                # Convert times to integer format
+                timestamps = numpy.array([int(t.timestamp()) for t in datetimes])
+
+                # Process the images
+                for n in range(images.shape[2]):
+                    images[:, :, n] = process_image(images[:, :, n])
+
+
+                # Write image to dataset. This requires resizing
+                # logging.info("img shape {}".format(img.shape))
+                img_ds.resize(img_ds.shape[2] + images.shape[2], axis=2)
+                img_ds[:, :, -images.shape[2]:] = images
 
                 # Write timestamp to dataset
                 time_ds.resize(time_ds.shape[0] + timestamps.shape[0], axis=0)
