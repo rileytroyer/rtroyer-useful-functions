@@ -5,4 +5,6 @@ __pycache__/
 image/
 *.pyc
 skymap/
-themis-script.log
+*.log
+.DS_Store
+.ipynb_checkpoints/
