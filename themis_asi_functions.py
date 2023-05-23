@@ -574,11 +574,10 @@ def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
                 # Read the data files
                 images, meta, problematic_files = themis_imager_readfile.read(hour_filepathnames,
                                                                               workers=workers)
-                logging.info(f'Image shape: {images.shape}')
 
                 # Check if images exists
                 if images.shape[2] == 0:
-                    logging.warning(f'No images for {hour_filepathnames}, skipping.')
+                    logging.warning(f'No images for hour, skipping.')
                     continue
 
                 # Extract datetimes from file
