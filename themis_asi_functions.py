@@ -476,8 +476,7 @@ def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
         clahe = cv2.createCLAHE(clipLimit=3, tileGridSize=(8, 8))
         image = clahe.apply(image)
  
-        return cv2.convertScaleAbs(image, alpha=(255.0/np.max(image)))
-        #return cv2.convertScaleAbs(image, alpha=(255.0/65535.0))
+        return cv2.convertScaleAbs(image, alpha=(255.0/numpy.max(image)))
     
     # Write images to h5 dataset
     logging.info('Starting h5 file creation script for {} and {}...'.format(asi,
@@ -809,7 +808,7 @@ def movie_job(job_input):
               writer=writer, dpi=150)
 
 def create_timestamped_movie(date, asi, workers=1,
-                 save_dir = '../../../asi-data/themis/',
+                 save_dir = '../../../asi-data/themis/'
                  ):
 
     """Function to create a movie from THEMIS ASI files with a timestamp and frame number.

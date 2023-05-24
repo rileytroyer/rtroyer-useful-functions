@@ -208,37 +208,24 @@ def read_process_img_clahe(filename):
     # Image processing
     clahe = cv2.createCLAHE(clipLimit=3, tileGridSize=(8, 8))
     image = clahe.apply(image)
+    image = clahe.apply(image)
 
     # Scale back to 0 to 255 values and 8-bit
     image = cv2.convertScaleAbs(image, alpha=(255.0/np.max(image)))
 
     return image
 
-def pfrr_asi_to_hdf5_8bit_clahe(date, save_base_dir, img_base_dir,
-                                wavelength='558',
-                                del_files = False, processes=1):
+def pfrr_asi_to_hdf5_8bit_clahe(date:datetime.datetime, save_base_dir:str, img_base_dir:str,
+                                wavelength:str='558', del_files:bool = False, processes:int=1):
     """Function to convert 428, 558, 630 nm PFRR images for an entire
     night to an 8-bit grayscale image and then write them to an h5 file.
     INPUT
-    date
-        type: datetime
-        about: date to perform image conversion and storage for
-    save_base_dir
-        type: string. example: '../data/pfrr-asi-data/pfrr-images/'
-        about: base directory to save the images to
-    img_base_dir
-        type: string. example: '../data/pfrr-asi-data/pfrr-images/individual-images'
-        about: base directory where the individual images are stored
-    wavelength='white'
-        type: string
-        about: which wavelength to use. White combines all three.
+    date - date to perform image conversion and storage for
+    save_base_dir - about: base directory to save the images to
+    img_base_dir - about: base directory where the individual images are stored
+    wavelength - which wavelength to use. White combines all three.
                Options: 428, 558, 630
-    del_files = True
-        type: bool
-        about: whether to delete the individual files after program runs
-    update_progress = True
-        type: bool
-        about: whether to update progress of creating the h5 file.
+    del_files - whether to delete the individual files after program runs
     OUTPUT
     none
     """
