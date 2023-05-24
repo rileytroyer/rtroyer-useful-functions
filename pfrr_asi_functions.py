@@ -210,13 +210,13 @@ def read_process_img_clahe(filename):
     image = clahe.apply(image)
 
     # Scale back to 0 to 255 values and 8-bit
-    image = ((image/np.max(image))*255).astype('uint8')
+    image = cv2.convertScaleAbs(image, alpha=(255.0/np.max(image)))
 
     return image
 
 def pfrr_asi_to_hdf5_8bit_clahe(date, save_base_dir, img_base_dir,
                                 wavelength='558',
-                                del_files = False, processes=25):
+                                del_files = False, processes=1):
     """Function to convert 428, 558, 630 nm PFRR images for an entire
     night to an 8-bit grayscale image and then write them to an h5 file.
     INPUT
