@@ -476,7 +476,7 @@ def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
         clahe = cv2.createCLAHE(clipLimit=3, tileGridSize=(8, 8))
         image = clahe.apply(image)
  
-        return cv2.convertScaleAbs(image, alpha=(255.0/numpy.max(image)))
+        return cv2.convertScaleAbs(image, alpha=(255.0/65536.0))
     
     # Write images to h5 dataset
     logging.info('Starting h5 file creation script for {} and {}...'.format(asi,
