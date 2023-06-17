@@ -245,10 +245,8 @@ def pfrr_asi_to_hdf5_8bit_clahe(date:datetime.datetime, save_base_dir:str, img_b
     # Get the full filepath
     files_wavelength = [dir_wavelength + f for f in files_wavelength]
     
-    # Convert datetime to integer timestamp
-    timestamps = np.array([int(t.timestamp()) for t in times_wavelength])
     # And ISO string
-    iso_time = np.array([t.isoformat() for t in times_wavelength]).astype('S26')
+    iso_time = np.array([t.isoformat() + 'Z' for t in times_wavelength]).astype('S27')
     
     # Write images to h5 dataset
     h5file = save_base_dir + 'all-images-' + str(date) + '-' + wavelength + '.h5'
@@ -263,16 +261,11 @@ def pfrr_asi_to_hdf5_8bit_clahe(date:datetime.datetime, save_base_dir:str, img_b
         img_ds = h5f.create_dataset('images', shape=image_data_shape,
                                     dtype='uint8')
 
-        time_ds = h5f.create_dataset('timestamps', shape=timestamps.shape,
-                                     dtype='uint64', data=timestamps)
-        iso_time_ds = h5f.create_dataset('iso_time_string', shape=iso_time.shape,
-                                         dtype='S26', data=iso_time)
+        time_ds = h5f.create_dataset('iso_ut_time', shape=iso_time.shape,
+                                         dtype='S27', data=iso_time)
 
         # Add attributes to datasets
-        time_ds.attrs['about'] = ('UT POSIX Timestamp.'
-                                  'Use datetime.fromtimestamp '
-                                  'to convert.')
-        iso_time_ds.attrs['about'] = ('ISO string format for UT time.')
+        time_ds.attrs['about'] = ('ISO 8601 formatted timestamp in byte string.')
         img_ds.attrs['wavelength'] = wavelength
 
         logging.info(f'Initialized h5 file: {h5file}. Starting to write data.')

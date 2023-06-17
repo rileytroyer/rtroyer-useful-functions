@@ -144,300 +144,300 @@ def download_themis_images(date, asi, save_dir = '../../../asi-data/themis/'):
             
     logging.info('Finished download script for {} and {}.'.format(asi, date.date()))
 
-def themis_asi_to_hdf5(date, asi, del_files = False,
-                       save_dir = ('../../../asi-data/themis/'), workers=2):
-    """Function to convert themis asi images
-    to 8-bit grayscale images and then write them to an h5 file.
-    INPUT
-    date
-        type: datetime
-        about: date to perform image conversion and storage for
-    asi
-        type: string
-        about: which THEMIS camera to use
-    del_files = False
-        type: bool
-        about: whether to delete the individual files after program runs
-    workers = 1
-        type: int
-        about: how many multiprocessing workers to use when reading in raw themis files
-    save_dir = ('../../../asi-data/themis/')
-        type: string
-        about: base directory to save the images to
-    OUTPUT
-    logging. I recommend writing to file by running this at the start of the code:
+# def themis_asi_to_hdf5(date, asi, del_files = False,
+#                        save_dir = ('../../../asi-data/themis/'), workers=2):
+#     """Function to convert themis asi images
+#     to 8-bit grayscale images and then write them to an h5 file.
+#     INPUT
+#     date
+#         type: datetime
+#         about: date to perform image conversion and storage for
+#     asi
+#         type: string
+#         about: which THEMIS camera to use
+#     del_files = False
+#         type: bool
+#         about: whether to delete the individual files after program runs
+#     workers = 1
+#         type: int
+#         about: how many multiprocessing workers to use when reading in raw themis files
+#     save_dir = ('../../../asi-data/themis/')
+#         type: string
+#         about: base directory to save the images to
+#     OUTPUT
+#     logging. I recommend writing to file by running this at the start of the code:
     
-    logging.basicConfig(filename='themis-script.log',
-                    encoding='utf-8',
-                    format='%(asctime)s %(levelname)-8s %(message)s',
-                    level=logging.INFO,
-                    datefmt='%Y-%m-%d %H:%M:%S')
-    """
+#     logging.basicConfig(filename='themis-script.log',
+#                     encoding='utf-8',
+#                     format='%(asctime)s %(levelname)-8s %(message)s',
+#                     level=logging.INFO,
+#                     datefmt='%Y-%m-%d %H:%M:%S')
+#     """
      
-    def bytescale(data, cmin=None, cmax=None, high=65535, low=0):
-        """Function for process_img(). convert data to another scale in linear fashion
-        INPUT
-        data : ndarray
-            PIL image data array.
-        cmin : scalar, optional
-            Bias scaling of small values. Default is data.min().
-        cmax : scalar, optional
-            Bias scaling of large values. Default is data.max().
-        high : scalar, optional
-            Scale max value to high. Default is 65535.
-        low : scalar, optional
-            Scale min value to low. Default is 0.
-        OUTPUT
-        img_array : ndarray
-            The byte-scaled array.
-        """
+#     def bytescale(data, cmin=None, cmax=None, high=65535, low=0):
+#         """Function for process_img(). convert data to another scale in linear fashion
+#         INPUT
+#         data : ndarray
+#             PIL image data array.
+#         cmin : scalar, optional
+#             Bias scaling of small values. Default is data.min().
+#         cmax : scalar, optional
+#             Bias scaling of large values. Default is data.max().
+#         high : scalar, optional
+#             Scale max value to high. Default is 65535.
+#         low : scalar, optional
+#             Scale min value to low. Default is 0.
+#         OUTPUT
+#         img_array : ndarray
+#             The byte-scaled array.
+#         """
 
-        if high > 65535:
-            raise ValueError("`high` should be less than or equal to 65535.")
-        if low < 0:
-            raise ValueError("`low` should be greater than or equal to 0.")
-        if high < low:
-            raise ValueError("`high` should be greater than or equal to `low`.")
+#         if high > 65535:
+#             raise ValueError("`high` should be less than or equal to 65535.")
+#         if low < 0:
+#             raise ValueError("`low` should be greater than or equal to 0.")
+#         if high < low:
+#             raise ValueError("`high` should be greater than or equal to `low`.")
 
-        if cmin is None:
-            cmin = data.min()
-        if cmax is None:
-            cmax = data.max()
+#         if cmin is None:
+#             cmin = data.min()
+#         if cmax is None:
+#             cmax = data.max()
 
-        cscale = cmax - cmin
-        if cscale < 0:
-            raise ValueError("`cmax` should be larger than `cmin`.")
-        elif cscale == 0:
-            cscale = 1
+#         cscale = cmax - cmin
+#         if cscale < 0:
+#             raise ValueError("`cmax` should be larger than `cmin`.")
+#         elif cscale == 0:
+#             cscale = 1
 
-        scale = float(high - low) / cscale
-        bytedata = (data - cmin) * scale + low
-        return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
+#         scale = float(high - low) / cscale
+#         bytedata = (data - cmin) * scale + low
+#         return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
     
-    def relu(data, cmin=None, cmax=None, high=65535, low=0,pivot=0.03, ratio=1.3):
-        # find the scale of current image
-        if cmin is None:
-            cmin = data.min()
-        if cmax is None:
-            cmax = data.max()
-        cscale = cmax - cmin
-        if cscale < 0:
-            raise ValueError("`cmax` should be larger than `cmin`.")
-        elif cscale == 0:
-            cscale = 1
+#     def relu(data, cmin=None, cmax=None, high=65535, low=0,pivot=0.03, ratio=1.3):
+#         # find the scale of current image
+#         if cmin is None:
+#             cmin = data.min()
+#         if cmax is None:
+#             cmax = data.max()
+#         cscale = cmax - cmin
+#         if cscale < 0:
+#             raise ValueError("`cmax` should be larger than `cmin`.")
+#         elif cscale == 0:
+#             cscale = 1
         
-        # the ratio between new scale and current scale
-        scale = float(high - low) / cscale
+#         # the ratio between new scale and current scale
+#         scale = float(high - low) / cscale
 
-        # process the data in relu
-        def _relu(data, pivot=pivot, low=low, ratio=ratio):
-            return numpy.maximum(pivot*cscale+low, ratio*data)
-        data = _relu(data)
+#         # process the data in relu
+#         def _relu(data, pivot=pivot, low=low, ratio=ratio):
+#             return numpy.maximum(pivot*cscale+low, ratio*data)
+#         data = _relu(data)
 
-        # convert data in the new scale and clip
-        bytedata = (data - cmin) * scale + low
-        return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
+#         # convert data in the new scale and clip
+#         bytedata = (data - cmin) * scale + low
+#         return (bytedata.clip(low, high) + 0.5).astype(numpy.uint16)
 
 
-    def process_img(img, method = 'relu'):
+#     def process_img(img, method = 'relu'):
 
-        """Function to process THEMIS ASI image. Plots in log scale and output
-        to 8-bit
-        INPUT
-        img
-            type: array
-            about: image data in array
-        method
-            type: string ('bytescale', 'log', 'relu')
-            about: the way to process img. 
-        OUTPUT
-        img
-            type: array
-            about: 8-bit processed image
-        """
+#         """Function to process THEMIS ASI image. Plots in log scale and output
+#         to 8-bit
+#         INPUT
+#         img
+#             type: array
+#             about: image data in array
+#         method
+#             type: string ('bytescale', 'log', 'relu')
+#             about: the way to process img. 
+#         OUTPUT
+#         img
+#             type: array
+#             about: 8-bit processed image
+#         """
         
-        if method == 'bytescale':
-            im_scaled = bytescale(img[:, :, :], cmin=3000, cmax=14000)
-            img = (im_scaled // 256)
+#         if method == 'bytescale':
+#             im_scaled = bytescale(img[:, :, :], cmin=3000, cmax=14000)
+#             img = (im_scaled // 256)
         
-        elif method == 'relu':
-            im_scaled = relu(img[:, :, :], cmin=3000, cmax=14000, pivot=0.06, ratio=2)
-            img = (im_scaled // 256)
+#         elif method == 'relu':
+#             im_scaled = relu(img[:, :, :], cmin=3000, cmax=14000, pivot=0.06, ratio=2)
+#             img = (im_scaled // 256)
         
-        elif method == 'log':
-            # Make smallest pixel value zero
-            try: 
-                img = abs(img - numpy.min(img))
-            except ValueError: 
-                pass
+#         elif method == 'log':
+#             # Make smallest pixel value zero
+#             try: 
+#                 img = abs(img - numpy.min(img))
+#             except ValueError: 
+#                 pass
 
-            # Set a maximum pixel value
-            max_pixel_val = 2**16
+#             # Set a maximum pixel value
+#             max_pixel_val = 2**16
 
-            # Set anything larger to this value
-            img[img>max_pixel_val] = max_pixel_val
+#             # Set anything larger to this value
+#             img[img>max_pixel_val] = max_pixel_val
             
-            # Scale image
-            img = (255/numpy.sqrt(1 + max_pixel_val)) * numpy.sqrt(1 + img)
+#             # Scale image
+#             img = (255/numpy.sqrt(1 + max_pixel_val)) * numpy.sqrt(1 + img)
 
-            # Clip to 0 to 255
-            img[img>255] = 255
+#             # Clip to 0 to 255
+#             img[img>255] = 255
 
-        # Convert to uint8
-        img = img.astype('uint8')
+#         # Convert to uint8
+#         img = img.astype('uint8')
 
-        return img  
+#         return img  
     
-    # Write images to h5 dataset
-    logging.info('Starting h5 file creation script for {} and {}...'.format(asi,
-                                                                            date.date()))
+#     # Write images to h5 dataset
+#     logging.info('Starting h5 file creation script for {} and {}...'.format(asi,
+#                                                                             date.date()))
 
-    h5file = save_dir + asi + '/all-images-' + str(date.date()) + '-' + asi + '.h5'
+#     h5file = save_dir + asi + '/all-images-' + str(date.date()) + '-' + asi + '.h5'
     
-    # Directory with images
-    tmp_img_dir = save_dir + asi + '/tmp/' + str(date.date()) + '/'
+#     # Directory with images
+#     tmp_img_dir = save_dir + asi + '/tmp/' + str(date.date()) + '/'
     
-    if not os.path.exists(tmp_img_dir):
-        logging.critical('Images are not downloaded. Try running download_themis_images.')
+#     if not os.path.exists(tmp_img_dir):
+#         logging.critical('Images are not downloaded. Try running download_themis_images.')
     
-    # Read in skymap
-    skymap_file = [f for f in os.listdir(tmp_img_dir) if f.endswith('.sav')][0]
+#     # Read in skymap
+#     skymap_file = [f for f in os.listdir(tmp_img_dir) if f.endswith('.sav')][0]
 
-    try:
-        # Try reading IDL save file
-        skymap = readsav(tmp_img_dir + skymap_file, python_dict=True)['skymap']
+#     try:
+#         # Try reading IDL save file
+#         skymap = readsav(tmp_img_dir + skymap_file, python_dict=True)['skymap']
 
-        # Get arrays
-        skymap_alt = skymap['FULL_MAP_ALTITUDE'][0]
-        skymap_glat = skymap['FULL_MAP_LATITUDE'][0][:, 0:-1, 0:-1]
-        skymap_glon = skymap['FULL_MAP_LONGITUDE'][0][:, 0:-1, 0:-1]
-        skymap_elev = skymap['FULL_ELEVATION'][0]
-        skymap_azim = skymap['FULL_AZIMUTH'][0]
+#         # Get arrays
+#         skymap_alt = skymap['FULL_MAP_ALTITUDE'][0]
+#         skymap_glat = skymap['FULL_MAP_LATITUDE'][0][:, 0:-1, 0:-1]
+#         skymap_glon = skymap['FULL_MAP_LONGITUDE'][0][:, 0:-1, 0:-1]
+#         skymap_elev = skymap['FULL_ELEVATION'][0]
+#         skymap_azim = skymap['FULL_AZIMUTH'][0]
         
-        logging.info('Read in skymap file from: {}'.format(skymap_file))
+#         logging.info('Read in skymap file from: {}'.format(skymap_file))
         
-    except Exception as e:
-        logging.error('Unable to read skymap file: {}.'
-                         ' Creating file without it.'.format(tmp_img_dir + skymap_file))
-        logging.error('Exception: {}'.format(e))
+#     except Exception as e:
+#         logging.error('Unable to read skymap file: {}.'
+#                          ' Creating file without it.'.format(tmp_img_dir + skymap_file))
+#         logging.error('Exception: {}'.format(e))
         
-        skymap_alt = numpy.array(['Unavailable'])
-        skymap_glat = numpy.array(['Unavailable'])
-        skymap_glon = numpy.array(['Unavailable'])
-        skymap_elev = numpy.array(['Unavailable'])
-        skymap_azim = numpy.array(['Unavailable'])
+#         skymap_alt = numpy.array(['Unavailable'])
+#         skymap_glat = numpy.array(['Unavailable'])
+#         skymap_glon = numpy.array(['Unavailable'])
+#         skymap_elev = numpy.array(['Unavailable'])
+#         skymap_azim = numpy.array(['Unavailable'])
 
-    # Does the downloaded image directory exists?
-    if not os.path.exists(tmp_img_dir):
-        logging.critical('Images do not exist at {}'.format(tmp_img_dir))
+#     # Does the downloaded image directory exists?
+#     if not os.path.exists(tmp_img_dir):
+#         logging.critical('Images do not exist at {}'.format(tmp_img_dir))
 
-    hour_dirs = os.listdir(tmp_img_dir)
-    hour_dirs = sorted([d for d in hour_dirs if d.startswith('ut')])
+#     hour_dirs = os.listdir(tmp_img_dir)
+#     hour_dirs = sorted([d for d in hour_dirs if d.startswith('ut')])
 
-    # Construct a list of pathnames to each file for day
-    filepathnames = []
+#     # Construct a list of pathnames to each file for day
+#     filepathnames = []
 
-    for hour_dir in hour_dirs:
+#     for hour_dir in hour_dirs:
 
-        # Name of all images in hour
-        img_files = sorted(os.listdir(tmp_img_dir + hour_dir))
-        img_files = [tmp_img_dir + hour_dir + '/' + f for f in img_files]
+#         # Name of all images in hour
+#         img_files = sorted(os.listdir(tmp_img_dir + hour_dir))
+#         img_files = [tmp_img_dir + hour_dir + '/' + f for f in img_files]
 
-        # Add to master list
-        filepathnames.append(img_files)
+#         # Add to master list
+#         filepathnames.append(img_files)
 
-    with h5py.File(h5file, 'w') as h5f:
+#     with h5py.File(h5file, 'w') as h5f:
 
-        # Initialize the datasets for images and timestamps
-        img_ds = h5f.create_dataset('images', shape=(256, 256, 0),
-                                    maxshape=(256, 256, None),
-                                    dtype='uint8')
+#         # Initialize the datasets for images and timestamps
+#         img_ds = h5f.create_dataset('images', shape=(256, 256, 0),
+#                                     maxshape=(256, 256, None),
+#                                     dtype='uint8')
 
-        time_ds = h5f.create_dataset('timestamps', shape=(0,),
-                                     maxshape=(None,),
-                                     dtype='uint64')
+#         time_ds = h5f.create_dataset('timestamps', shape=(0,),
+#                                      maxshape=(None,),
+#                                      dtype='uint64')
 
-        alt_ds = h5f.create_dataset('skymap_alt', shape=skymap_alt.shape,
-                                     dtype='float', data=skymap_alt)        
+#         alt_ds = h5f.create_dataset('skymap_alt', shape=skymap_alt.shape,
+#                                      dtype='float', data=skymap_alt)        
         
-        glat_ds = h5f.create_dataset('skymap_glat', shape=skymap_glat.shape,
-                                     dtype='float', data=skymap_glat)
+#         glat_ds = h5f.create_dataset('skymap_glat', shape=skymap_glat.shape,
+#                                      dtype='float', data=skymap_glat)
 
-        glon_ds = h5f.create_dataset('skymap_glon', shape=skymap_glon.shape,
-                                     dtype='float', data=skymap_glon)
+#         glon_ds = h5f.create_dataset('skymap_glon', shape=skymap_glon.shape,
+#                                      dtype='float', data=skymap_glon)
 
-        elev_ds = h5f.create_dataset('skymap_elev', shape=skymap_elev.shape,
-                                     dtype='float', data=skymap_elev)
+#         elev_ds = h5f.create_dataset('skymap_elev', shape=skymap_elev.shape,
+#                                      dtype='float', data=skymap_elev)
 
-        azim_ds = h5f.create_dataset('skymap_azim', shape=skymap_azim.shape,
-                                     dtype='float', data=skymap_azim)
+#         azim_ds = h5f.create_dataset('skymap_azim', shape=skymap_azim.shape,
+#                                      dtype='float', data=skymap_azim)
 
-        # Loop through each hour, process and write images to file
-        logging.info('Processing and writing images to file...')
+#         # Loop through each hour, process and write images to file
+#         logging.info('Processing and writing images to file...')
 
-        try:
-            for hour_filepathnames in filepathnames:
-                # logging.info('file name is {}'.format(hour_filepathnames))
+#         try:
+#             for hour_filepathnames in filepathnames:
+#                 # logging.info('file name is {}'.format(hour_filepathnames))
 
-                # Read the data files
-                img, meta, problematic_files = themis_imager_readfile.read(hour_filepathnames,
-                                                                           workers=workers)
+#                 # Read the data files
+#                 img, meta, problematic_files = themis_imager_readfile.read(hour_filepathnames,
+#                                                                            workers=workers)
 
-                # Extract datetimes from file
-                datetimes = [datetime.strptime(m['Image request start'],
-                                                 '%Y-%m-%d %H:%M:%S.%f %Z') for m in meta]
+#                 # Extract datetimes from file
+#                 datetimes = [datetime.strptime(m['Image request start'],
+#                                                  '%Y-%m-%d %H:%M:%S.%f %Z') for m in meta]
 
-                # Convert times to integer format
-                timestamps = numpy.array([int(t.timestamp()) for t in datetimes])
+#                 # Convert times to integer format
+#                 timestamps = numpy.array([int(t.timestamp()) for t in datetimes])
 
-                # Process the image
-                # logging.info("img shape before " + str(img.shape))
-                img = process_img(img)
+#                 # Process the image
+#                 # logging.info("img shape before " + str(img.shape))
+#                 img = process_img(img)
 
-                # Write image to dataset. This requires resizing
-                # logging.info("img shape {}".format(img.shape))
-                img_ds.resize(img_ds.shape[2] + img.shape[2], axis=2)
-                img_ds[:, :, -img.shape[2]:] = img
+#                 # Write image to dataset. This requires resizing
+#                 # logging.info("img shape {}".format(img.shape))
+#                 img_ds.resize(img_ds.shape[2] + img.shape[2], axis=2)
+#                 img_ds[:, :, -img.shape[2]:] = img
 
-                # Write timestamp to dataset
-                time_ds.resize(time_ds.shape[0] + timestamps.shape[0], axis=0)
-                time_ds[-timestamps.shape[0]:] = timestamps
+#                 # Write timestamp to dataset
+#                 time_ds.resize(time_ds.shape[0] + timestamps.shape[0], axis=0)
+#                 time_ds[-timestamps.shape[0]:] = timestamps
 
-        except Exception as e:
-            logging.critical('Unable to write images to file. Stopping.'
-                             ' Deleting h5 file and, if specified, images.')
-            logging.critical('Exception: {}'.format(e))
+#         except Exception as e:
+#             logging.critical('Unable to write images to file. Stopping.'
+#                              ' Deleting h5 file and, if specified, images.')
+#             logging.critical('Exception: {}'.format(e))
             
-            # Delete h5 file
-            os.remove(h5file)
+#             # Delete h5 file
+#             os.remove(h5file)
             
-            # Delete the raw image files if specified
-            if del_files == True:
-                logging.info('Deleting directory: {}'.format(tmp_img_dir))
-                shutil.rmtree(tmp_img_dir)
-            raise
+#             # Delete the raw image files if specified
+#             if del_files == True:
+#                 logging.info('Deleting directory: {}'.format(tmp_img_dir))
+#                 shutil.rmtree(tmp_img_dir)
+#             raise
 
-        # Add attributes to datasets
-        time_ds.attrs['about'] = ('UT POSIX Timestamp.'
-                                  ' Use datetime.fromtimestamp '
-                                  'to convert. Time is start of image.'
-                                  ' 1 second exposure.')
-        img_ds.attrs['wavelength'] = 'white'
-        img_ds.attrs['station_latitude'] = float(meta[0]['Geodetic latitude'])
-        img_ds.attrs['station_longitude'] = float(meta[0]['Geodetic Longitude'])
-        alt_ds.attrs['about'] = 'Altitudes for different skymaps.'
-        glat_ds.attrs['about'] = 'Geographic latitude at pixel corner, excluding last.'
-        glon_ds.attrs['about'] = 'Geographic longitude at pixel corner, excluding last.'
-        elev_ds.attrs['about'] = 'Elevation angle of pixel center.'
-        azim_ds.attrs['about'] = 'Azimuthal angle of pixel center.'
+#         # Add attributes to datasets
+#         time_ds.attrs['about'] = ('UT POSIX Timestamp.'
+#                                   ' Use datetime.fromtimestamp '
+#                                   'to convert. Time is start of image.'
+#                                   ' 1 second exposure.')
+#         img_ds.attrs['wavelength'] = 'white'
+#         img_ds.attrs['station_latitude'] = float(meta[0]['Geodetic latitude'])
+#         img_ds.attrs['station_longitude'] = float(meta[0]['Geodetic Longitude'])
+#         alt_ds.attrs['about'] = 'Altitudes for different skymaps.'
+#         glat_ds.attrs['about'] = 'Geographic latitude at pixel corner, excluding last.'
+#         glon_ds.attrs['about'] = 'Geographic longitude at pixel corner, excluding last.'
+#         elev_ds.attrs['about'] = 'Elevation angle of pixel center.'
+#         azim_ds.attrs['about'] = 'Azimuthal angle of pixel center.'
         
-    # Delete the raw image files if specified
-    if del_files == True:
-        logging.info('Deleting directory: {}'.format(tmp_img_dir))
-        shutil.rmtree(tmp_img_dir)
+#     # Delete the raw image files if specified
+#     if del_files == True:
+#         logging.info('Deleting directory: {}'.format(tmp_img_dir))
+#         shutil.rmtree(tmp_img_dir)
 
-    logging.info('Finished h5 file creation script for {} and {}.'
-                 ' File is saved to: {}'.format(asi, date.date(), h5file))
+#     logging.info('Finished h5 file creation script for {} and {}.'
+#                  ' File is saved to: {}'.format(asi, date.date(), h5file))
 
 
 def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
@@ -543,9 +543,9 @@ def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
                                     maxshape=(256, 256, None),
                                     dtype='uint8')
 
-        time_ds = h5f.create_dataset('timestamps', shape=(0,),
+        time_ds = h5f.create_dataset('iso_ut_time', shape=(0,),
                                      maxshape=(None,),
-                                     dtype='uint64')
+                                     dtype='S27')
 
         alt_ds = h5f.create_dataset('skymap_alt', shape=skymap_alt.shape,
                                      dtype='float', data=skymap_alt)        
@@ -586,7 +586,7 @@ def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
                                                  '%Y-%m-%d %H:%M:%S.%f %Z') for m in meta]
 
                 # Convert times to integer format
-                timestamps = numpy.array([int(t.timestamp()) for t in datetimes])
+                timestamps = numpy.array([t.isoformat() + 'Z' for t in datetimes]).astype('S26')
 
                 # Process the images
                 for n in range(images.shape[2]):
@@ -617,10 +617,7 @@ def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
             raise
 
         # Add attributes to datasets
-        time_ds.attrs['about'] = ('UT POSIX Timestamp.'
-                                  ' Use datetime.fromtimestamp '
-                                  'to convert. Time is start of image.'
-                                  ' 1 second exposure.')
+        time_ds.attrs['about'] = ('ISO 8601 formatted timestamp in byte string.')
         img_ds.attrs['wavelength'] = 'white'
         img_ds.attrs['station_latitude'] = float(meta[0]['Geodetic latitude'])
         img_ds.attrs['station_longitude'] = float(meta[0]['Geodetic Longitude'])
