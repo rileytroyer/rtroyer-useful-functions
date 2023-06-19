@@ -441,7 +441,7 @@ def download_themis_images(date, asi, save_dir = '../../../asi-data/themis/'):
 
 
 def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
-                                  save_dir = ('../../../asi-data/themis/'), workers=2):
+                                  save_dir = ('../../../asi-data/themis/'), workers=1):
     """Function to convert themis asi images
     to 8-bit grayscale images and then write them to an h5 file.
     INPUT
@@ -586,7 +586,7 @@ def themis_asi_to_hdf5_8bit_clahe(date, asi, del_files = False,
                                                  '%Y-%m-%d %H:%M:%S.%f %Z') for m in meta]
 
                 # Convert times to integer format
-                timestamps = numpy.array([t.isoformat() + 'Z' for t in datetimes]).astype('S26')
+                timestamps = numpy.array([t.isoformat() + 'Z' for t in datetimes]).astype('S27')
 
                 # Process the images
                 for n in range(images.shape[2]):
